@@ -1,0 +1,85 @@
+"""Validated public API and persistent data schemas."""
+
+from enum import StrEnum
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+
+class Session(StrictModel):
+    id: str
+    title: str
+    created_at: str
+    updated_at: str
+
+
+class SessionCreate(StrictModel):
+    title: str = Field(default="New conversation", min_length=1, max_length=120)
+
+
+class Message(StrictModel):
+    id: str
+    session_id: str
+    role: Literal["user", "assistant", "tool"]
+    content: str
+    created_at: str
+
+
+class MessageCreate(StrictModel):
+    content: str = Field(min_length=1, max_length=32000)
+
+
+class ApprovalStatus(StrEnum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    DENIED = "denied"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class Approval(StrictModel):
+    id: str
+    session_id: str
+    tool_name: str
+    arguments: dict[str, Any]
+    risk: Literal["low", "medium", "high"]
+    status: Literal["pending", "approved", "denied", "completed", "failed"]
+    created_at: str
+    result: dict[str, Any] | None = None
+    error: str | None = None
+
+
+class ApprovalDecision(StrictModel):
+    approved: bool
+
+
+class ChatResponse(StrictModel):
+    user_message: Message
+    assistant_message: Message
+    approvals: list[Approval]
+
+
+class SettingsUpdate(StrictModel):
+    provider: Literal["openai"] = "openai"
+    model: str = Field(default="gpt-4.1-mini", pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,119}$")
+    require_approval_for_low_risk: bool = False
+
+
+class Settings(SettingsUpdate):
+    api_key_configured: bool
+    application_allowlist: list[dict[str, str]]
+
+
+class AuditEntry(StrictModel):
+    id: str
+    timestamp: str
+    event: str
+    session_id: str | None = None
+    tool_name: str | None = None
+    approval_id: str | None = None
+    details: dict[str, Any]
+    error: str | None = None

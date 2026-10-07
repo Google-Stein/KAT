@@ -1,0 +1,75 @@
+name: KAT checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install uv and locked dependencies
+        run: |
+          python -m pip install uv
+          uv sync --project core --frozen --group dev
+      - name: Test, lint, format, and type check
+        working-directory: core
+        run: |
+          uv run pytest tests ../tests/integration
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy
+      - name: Real Core process smoke check
+        run: python scripts/smoke-core.py
+  desktop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install and check UI
+        working-directory: desktop
+        run: |
+          npm ci
+          npm test
+          npm run lint
+          npm run format:check
+          npm run typecheck
+          npm run build
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Native lifecycle tests
+        working-directory: desktop
+        run: |
+          cargo test --locked --manifest-path src-tauri/Cargo.toml --no-default-features
+          cargo fmt --manifest-path src-tauri/Cargo.toml --check
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build packaged Windows executable
+        shell: pwsh
+        run: ./scripts/build-windows.ps1 -NoBundle
+      - name: Verify packaged desktop window and Core lifecycle
+        shell: pwsh
+        run: ./scripts/smoke-windows.ps1
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: kat-windows-executable
+          path: |
+            desktop/src-tauri/target/release/kat-desktop.exe
+            desktop/src-tauri/target/release/binaries/

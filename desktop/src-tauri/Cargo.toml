@@ -1,0 +1,37 @@
+[package]
+name = "kat-desktop"
+version = "0.1.0"
+description = "KAT local-first desktop shell"
+authors = ["KAT contributors"]
+edition = "2021"
+rust-version = "1.90"
+license = "CC0-1.0"
+
+[lib]
+name = "kat_desktop"
+path = "src/lib.rs"
+
+[[bin]]
+name = "kat-desktop"
+path = "src/main.rs"
+required-features = ["desktop"]
+
+[features]
+default = ["desktop"]
+desktop = ["dep:tauri", "dep:tauri-build"]
+custom-protocol = ["desktop", "tauri/custom-protocol"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [], optional = true }
+
+[dependencies]
+getrandom = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["blocking"] }
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [], optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_Security"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"

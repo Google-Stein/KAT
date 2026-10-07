@@ -1,0 +1,45 @@
+# Credentials and machine-local configuration
+.env
+.env.*
+!.env.example
+.local/
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+coverage.xml
+build/
+dist/
+*.spec
+
+# JavaScript / native build outputs
+node_modules/
+coverage/
+target/
+*.tsbuildinfo
+desktop/src-tauri/gen/schemas/
+desktop/src-tauri/binaries/kat-core*
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local tools and validation artifacts
+.cache/
+.kat-tools/
+test-results/
