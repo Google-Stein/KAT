@@ -43,3 +43,12 @@
 ## ADR 011: Installed application, local inference, then memory review
 
 **Accepted product direction.** Preserve the validated 0.1 foundation. Prioritize 0.1.1 installation, Windows Credential Manager storage and actionable provider errors; then 0.2 local inference behind the existing runtime abstraction, with OpenAI optional and no silent cloud fallback. After 0.2, stop and present a memory architecture proposal for explicit owner review before implementing 0.3+ personal intelligence. Saved transcripts do not satisfy or bypass that review. Runtime/model selection and the memory design remain future decisions. Unrelated major capabilities remain outside this sequence. Scope and acceptance criteria are recorded in [ROADMAP.md](ROADMAP.md).
+
+## ADR 012: Native Windows provider key entry
+
+Use a current-user generic Windows Credential Manager entry and a Windows-native
+masked credential dialog. React sees presence/status, never an API key. Existing
+environment overrides remain useful for CI/development and are clearly disclosed.
+Credential changes restart Core through the stabilized ownership/lifecycle path.
+Cancel and vault-write failure preserve the existing process. Windows tests use
+unique synthetic entries and never mutate an owner's production credential.

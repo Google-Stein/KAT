@@ -14,6 +14,8 @@ import type {
   CoreConnection,
   Health,
   Message,
+  ProviderCredentialsChange,
+  ProviderCredentialsStatus,
   Session,
   Settings,
   SettingsUpdate,
@@ -37,39 +39,80 @@ export default function App() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [credentials, setCredentials] = useState<ProviderCredentialsStatus | null>(null);
+  const [credentialsLoading, setCredentialsLoading] = useState(false);
+  const [credentialsStatusError, setCredentialsStatusError] = useState(false);
+  const [credentialsNotice, setCredentialsNotice] = useState<string | null>(null);
+  const [credentialsChanging, setCredentialsChanging] = useState(false);
   const actionRef = useRef(false);
   const connectRef = useRef(false);
+  const credentialsRef = useRef(false);
 
-  const connect = useCallback(async (connection?: CoreConnection, restart = false) => {
-    if (connectRef.current) return;
-    connectRef.current = true;
-    setConnecting(true);
-    setError(null);
+  const connect = useCallback(
+    async (connection?: CoreConnection, restart = false, preserveSession = false) => {
+      if (connectRef.current) return;
+      connectRef.current = true;
+      setConnecting(true);
+      setError(null);
+      try {
+        const resolved =
+          connection ?? (await invoke<CoreConnection>(restart ? 'restart_core' : 'core_connection'));
+        const client = new CoreApi(resolved);
+        // A credential change rotates the runtime token. Stop using the old client immediately.
+        if (preserveSession) {
+          setApi(client);
+          setHealth(null);
+        }
+        const [status, savedSessions, savedSettings] = await Promise.all([
+          client.health(),
+          client.sessions(),
+          client.settings(),
+        ]);
+        setHealth(status);
+        setSessions(savedSessions);
+        setSettings(savedSettings);
+        setSelectedId((previous) =>
+          preserveSession && savedSessions.some((session) => session.id === previous)
+            ? previous
+            : (savedSessions[0]?.id ?? null),
+        );
+        setApi(client);
+        return true;
+      } catch (failure) {
+        setError(errorMessage(failure));
+        return false;
+      } finally {
+        connectRef.current = false;
+        setConnecting(false);
+      }
+    },
+    [],
+  );
+
+  const refreshCredentials = useCallback(async () => {
+    if (!native || credentialsRef.current) return;
+    credentialsRef.current = true;
+    setCredentialsLoading(true);
+    setCredentialsStatusError(false);
     try {
-      const resolved =
-        connection ?? (await invoke<CoreConnection>(restart ? 'restart_core' : 'core_connection'));
-      const client = new CoreApi(resolved);
-      const [status, savedSessions, savedSettings] = await Promise.all([
-        client.health(),
-        client.sessions(),
-        client.settings(),
-      ]);
-      setHealth(status);
-      setSessions(savedSessions);
-      setSettings(savedSettings);
-      setSelectedId(savedSessions[0]?.id ?? null);
-      setApi(client);
-    } catch (failure) {
-      setError(errorMessage(failure));
+      setCredentials(await invoke<ProviderCredentialsStatus>('provider_credentials_status'));
+    } catch {
+      setCredentials(null);
+      setCredentialsStatusError(true);
     } finally {
-      connectRef.current = false;
-      setConnecting(false);
+      credentialsRef.current = false;
+      setCredentialsLoading(false);
     }
-  }, []);
+  }, [native]);
 
   useEffect(() => {
     if (native) void connect();
   }, [native, connect]);
+
+  useEffect(() => {
+    if (native && api && view === 'settings' && !credentials && !credentialsStatusError)
+      void refreshCredentials();
+  }, [native, api, view, credentials, credentialsStatusError, refreshCredentials]);
 
   useEffect(() => {
     if (!api || !selectedId || view !== 'chat' || busy) return;
@@ -227,6 +270,47 @@ export default function App() {
     }
   }
 
+  async function changeCredentials(remove: boolean) {
+    if (!native || !credentials?.supported || actionRef.current || credentialsLoading) return;
+    actionRef.current = true;
+    setBusy(true);
+    setCredentialsChanging(true);
+    setSettingsSaved(false);
+    setCredentialsNotice(remove ? 'Removing the saved key…' : 'Waiting for the Windows security dialog…');
+    setError(null);
+    try {
+      const result = await invoke<ProviderCredentialsChange>(
+        remove ? 'remove_provider_credentials' : 'configure_provider_credentials',
+      );
+      setCredentials(result.status);
+      setCredentialsStatusError(false);
+      if (!result.changed) {
+        setCredentialsNotice(remove ? 'No saved key was removed.' : 'API key setup cancelled.');
+        return;
+      }
+      if (!result.connection) throw new Error('Missing restarted Core connection');
+      const connected = await connect(result.connection, false, true);
+      setCredentialsNotice(
+        connected
+          ? remove
+            ? 'Saved key removed. Local Core restarted.'
+            : 'API key saved. Local Core restarted.'
+          : 'Key configuration changed. Core could not be refreshed; disconnect and retry the local connection.',
+      );
+    } catch {
+      // Native failures may follow a persisted change. Never render raw secret-bearing diagnostics.
+      setError(
+        'Could not complete the key configuration change. Check the saved-key status below. If Core is unavailable, disconnect and retry the local connection. No conversations were removed.',
+      );
+      setCredentialsNotice(null);
+      await refreshCredentials();
+    } finally {
+      actionRef.current = false;
+      setBusy(false);
+      setCredentialsChanging(false);
+    }
+  }
+
   function disconnect() {
     setApi(null);
     setHealth(null);
@@ -235,6 +319,9 @@ export default function App() {
     setMessages([]);
     setApprovals([]);
     setSettings(null);
+    setCredentials(null);
+    setCredentialsNotice(null);
+    setCredentialsStatusError(false);
     setEvents([]);
     setDraft('');
     setView('chat');
@@ -244,7 +331,16 @@ export default function App() {
   }
 
   if (!api)
-    return <ConnectScreen native={native} connecting={connecting} error={error} onConnect={connect} />;
+    return (
+      <ConnectScreen
+        native={native}
+        connecting={connecting}
+        error={error}
+        onConnect={async (connection, restart) => {
+          await connect(connection, restart);
+        }}
+      />
+    );
   return (
     <div className="app-shell">
       <Sidebar
@@ -292,6 +388,15 @@ export default function App() {
             saving={busy}
             saved={settingsSaved}
             onSave={(update) => void saveSettings(update)}
+            native={native}
+            credentials={credentials}
+            credentialsLoading={credentialsLoading}
+            credentialsNotice={credentialsNotice}
+            credentialsStatusError={credentialsStatusError}
+            credentialsChanging={credentialsChanging}
+            onRefreshCredentials={() => void refreshCredentials()}
+            onConfigureCredentials={() => void changeCredentials(false)}
+            onRemoveCredentials={() => void changeCredentials(true)}
           />
         )}
         {view === 'audit' && (

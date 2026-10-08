@@ -1,6 +1,7 @@
 //! Owned local core process lifecycle, kept independent of the webview for tests.
 
 use serde::Serialize;
+pub mod credentials;
 #[cfg(target_os = "linux")]
 mod linux_guardian;
 #[cfg(windows)]
@@ -161,6 +162,7 @@ impl CoreProcess {
             .stdin(Stdio::null())
             .stdout(Stdio::from(stdout))
             .stderr(Stdio::from(stderr));
+        credentials::configure_core_environment(&mut command)?;
         #[cfg(target_os = "linux")]
         let spawned = linux_guardian::spawn(command);
         #[cfg(windows)]

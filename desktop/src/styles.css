@@ -844,6 +844,16 @@ select:disabled {
   line-height: 1.8;
   opacity: 0.8;
 }
+.credential-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+.credential-actions .field-hint {
+  margin: 0;
+}
 .data-note {
   color: #ae94be;
   font-size: 10px;

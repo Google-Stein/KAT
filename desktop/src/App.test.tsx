@@ -3,7 +3,15 @@ import userEvent from '@testing-library/user-event';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
-import type { Approval, AuditEvent, Message, Session, Settings } from './types';
+import type {
+  Approval,
+  AuditEvent,
+  Message,
+  ProviderCredentialsChange,
+  ProviderCredentialsStatus,
+  Session,
+  Settings,
+} from './types';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(), isTauri: vi.fn(() => false) }));
 
@@ -50,7 +58,7 @@ interface MockState {
   events: AuditEvent[];
 }
 let state: MockState;
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock: ReturnType<typeof vi.fn<(input: string, init?: RequestInit) => Promise<Response>>>;
 
 function response(data: unknown, status = 200) {
   return { ok: status >= 200 && status < 300, status, json: async () => data } as Response;
@@ -305,5 +313,212 @@ describe('KAT desktop workflow', () => {
       'core_connection',
       'restart_core',
     ]);
+  });
+});
+
+describe('Windows provider credential controls', () => {
+  const oldConnection = { base_url: 'http://127.0.0.1:42800', token: 'initial-native-token' };
+  const restartedConnection = { ...oldConnection, token: 'rotated-native-token' };
+  let credentials: ProviderCredentialsStatus;
+  let configure: () => Promise<ProviderCredentialsChange>;
+  let remove: () => Promise<ProviderCredentialsChange>;
+
+  beforeEach(() => {
+    vi.mocked(isTauri).mockReturnValue(true);
+    credentials = { supported: true, stored: false, environment_configured: false };
+    configure = async () => ({ changed: false, connection: null, status: credentials });
+    remove = async () => ({ changed: false, connection: null, status: credentials });
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      switch (command) {
+        case 'core_connection':
+          return oldConnection;
+        case 'provider_credentials_status':
+          return credentials;
+        case 'configure_provider_credentials':
+          return configure();
+        case 'remove_provider_credentials':
+          return remove();
+        default:
+          throw new Error(`Unexpected native command ${command}`);
+      }
+    });
+  });
+
+  async function openSettings() {
+    const user = userEvent.setup();
+    const rendered = render(<App />);
+    await screen.findByText('Your saved conversation is here.');
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('provider_credentials_status'));
+    return { user, ...rendered };
+  }
+
+  it('sets a key through Windows and refreshes configuration using the rotated runtime token', async () => {
+    state.ready = false;
+    state.settings.api_key_configured = false;
+    configure = async () => {
+      credentials = { ...credentials, stored: true };
+      state.ready = true;
+      state.settings = { ...state.settings, api_key_configured: true };
+      return { changed: true, connection: restartedConnection, status: credentials };
+    };
+    const { user, container } = await openSettings();
+    await user.clear(screen.getByLabelText('Model'));
+    await user.type(screen.getByLabelText('Model'), 'gpt-4.1');
+    await user.click(screen.getByLabelText(/Ask before low-risk tools/));
+    await user.click(screen.getByRole('button', { name: 'Set API key' }));
+    await screen.findByText('API key saved. Local Core restarted.');
+    expect(screen.getByText('API key configured')).toBeVisible();
+    expect(screen.getByText(/Windows saved key: present/)).toBeVisible();
+    expect(screen.getByLabelText('Model')).toHaveValue('gpt-4.1');
+    expect(screen.getByLabelText(/Ask before low-risk tools/)).toBeChecked();
+    expect(container.querySelector('input[type="password"]')).toBeNull();
+    expect(screen.queryByLabelText(/API key/)).not.toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith('configure_provider_credentials');
+    const restartedCalls = fetchMock.mock.calls.filter(
+      ([, init]) => (init?.headers as Record<string, string>).Authorization === 'Bearer rotated-native-token',
+    );
+    expect(restartedCalls.map(([url]) => new URL(url).pathname)).toEqual(
+      expect.arrayContaining(['/health', '/settings', '/sessions']),
+    );
+    await user.click(screen.getByRole('button', { name: firstSession.title }));
+    await screen.findByText('Your saved conversation is here.');
+    expect(screen.getByLabelText('Message KAT')).toBeEnabled();
+    expect(localStorage.length).toBe(0);
+  });
+
+  it('keeps the selected conversation and unsent chat draft after replacing the key', async () => {
+    const secondSession = { ...firstSession, id: 'session-2', title: 'A second conversation' };
+    state.sessions.push(secondSession);
+    state.messages[secondSession.id] = [{ ...savedMessage, id: 'message-2', content: 'Second history.' }];
+    credentials = { ...credentials, stored: true };
+    configure = async () => ({ changed: true, connection: restartedConnection, status: credentials });
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Your saved conversation is here.');
+    await user.click(screen.getByRole('button', { name: secondSession.title }));
+    await screen.findByText('Second history.');
+    await user.type(screen.getByLabelText('Message KAT'), 'An unsent thought');
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(await screen.findByRole('button', { name: 'Replace saved key' }));
+    await screen.findByText('API key saved. Local Core restarted.');
+    await user.click(screen.getByRole('button', { name: secondSession.title }));
+    await screen.findByText('Second history.');
+    expect(screen.getByLabelText('Message KAT')).toHaveValue('An unsent thought');
+    expect(screen.queryByText('Your saved conversation is here.')).not.toBeInTheDocument();
+  });
+
+  it('treats cancelling the Windows dialog as neutral and does not restart or refresh Core', async () => {
+    const { user } = await openSettings();
+    const initialHealthCalls = fetchMock.mock.calls.filter(([url]) => new URL(url).pathname === '/health');
+    await user.click(screen.getByRole('button', { name: 'Set API key' }));
+    await screen.findByText('API key setup cancelled.');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Set API key' })).toBeEnabled();
+    expect(fetchMock.mock.calls.filter(([url]) => new URL(url).pathname === '/health')).toHaveLength(
+      initialHealthCalls.length,
+    );
+    expect(invoke).not.toHaveBeenCalledWith('restart_core');
+  });
+
+  it('removes only the saved key and explains when an environment key still configures Core', async () => {
+    credentials = { ...credentials, stored: true, environment_configured: true };
+    remove = async () => {
+      credentials = { ...credentials, stored: false };
+      return { changed: true, connection: restartedConnection, status: credentials };
+    };
+    const { user } = await openSettings();
+    await user.click(await screen.findByRole('button', { name: 'Remove saved key' }));
+    await screen.findByText('Saved key removed. Local Core restarted.');
+    expect(screen.getByText('API key configured')).toBeVisible();
+    expect(screen.getByText(/Windows saved key: not set/)).toBeVisible();
+    expect(screen.getByText(/process environment key is configured and takes precedence/)).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Remove saved key' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Set API key' })).toBeEnabled();
+  });
+
+  it('disables model conversation after removing the only configured key', async () => {
+    credentials = { ...credentials, stored: true };
+    remove = async () => {
+      credentials = { ...credentials, stored: false };
+      state.ready = false;
+      state.settings = { ...state.settings, api_key_configured: false };
+      return { changed: true, connection: restartedConnection, status: credentials };
+    };
+    const { user } = await openSettings();
+    await user.click(await screen.findByRole('button', { name: 'Remove saved key' }));
+    await screen.findByText('Saved key removed. Local Core restarted.');
+    expect(screen.getByText('API key required')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: firstSession.title }));
+    await screen.findByText('Your saved conversation is here.');
+    expect(screen.getByLabelText('Message KAT')).toBeDisabled();
+  });
+
+  it('refreshes credential status after a native failure without exposing its raw diagnostic', async () => {
+    configure = async () => {
+      credentials = { ...credentials, stored: true };
+      throw new Error('Sensitive diagnostic: sk-test-never-display-this');
+    };
+    const { user } = await openSettings();
+    await user.click(screen.getByRole('button', { name: 'Set API key' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not complete the key configuration');
+    await screen.findByRole('button', { name: 'Replace saved key' });
+    expect(screen.queryByText(/sk-test-never-display-this/)).not.toBeInTheDocument();
+    expect(
+      vi.mocked(invoke).mock.calls.filter(([name]) => name === 'provider_credentials_status'),
+    ).toHaveLength(2);
+    expect(screen.getByRole('button', { name: /Local Core connected/ })).toBeEnabled();
+  });
+
+  it('prevents duplicate native actions while a dialog or restart is pending', async () => {
+    let finish: ((result: ProviderCredentialsChange) => void) | undefined;
+    configure = () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      });
+    const { user } = await openSettings();
+    await user.click(screen.getByRole('button', { name: 'Set API key' }));
+    expect(screen.getByRole('button', { name: 'Set API key' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Please wait…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Local Core connected/ })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Set API key' }));
+    expect(
+      vi.mocked(invoke).mock.calls.filter(([name]) => name === 'configure_provider_credentials'),
+    ).toHaveLength(1);
+    finish?.({ changed: false, connection: null, status: credentials });
+    await screen.findByText('API key setup cancelled.');
+  });
+
+  it('offers a retry when credential status cannot be read', async () => {
+    const originalInvoke = vi.mocked(invoke).getMockImplementation();
+    vi.mocked(invoke).mockImplementationOnce(() => Promise.resolve(oldConnection));
+    vi.mocked(invoke).mockImplementationOnce(() => Promise.reject(new Error('Credential store unavailable')));
+    const { user } = await openSettings();
+    expect(await screen.findByText('Could not check Windows credentials. Try again.')).toBeVisible();
+    vi.mocked(invoke).mockImplementation(originalInvoke!);
+    await user.click(screen.getByRole('button', { name: 'Retry credential check' }));
+    await screen.findByRole('button', { name: 'Set API key' });
+    expect(screen.queryByText('Could not check Windows credentials. Try again.')).not.toBeInTheDocument();
+  });
+
+  it('shows environment setup on non-Windows without offering credential commands', async () => {
+    credentials = { ...credentials, supported: false };
+    const { container } = await openSettings();
+    await screen.findByText('Saved key management is available in the Windows desktop application.');
+    expect(screen.getByText(/Set OPENAI_API_KEY/)).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Set API key' })).not.toBeInTheDocument();
+    expect(container.querySelector('input[type="password"]')).toBeNull();
+    expect(invoke).not.toHaveBeenCalledWith('configure_provider_credentials');
+    expect(invoke).not.toHaveBeenCalledWith('remove_provider_credentials');
+  });
+
+  it('never calls native credential commands from the browser development interface', async () => {
+    vi.mocked(isTauri).mockReturnValue(false);
+    const user = await connect();
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(screen.getByText(/Set OPENAI_API_KEY/)).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Set API key' })).not.toBeInTheDocument();
+    expect(invoke).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText(/API key/)).not.toBeInTheDocument();
   });
 });

@@ -31,3 +31,21 @@ Tool requests, approval requirements/decisions, execution results, timestamps, a
 ## Reporting
 
 Report a security issue privately to the repository owner. Avoid including API keys, runtime tokens, or real transcripts in an issue. Include the affected version and a minimized reproduction. This release has no public vulnerability-reporting endpoint.
+
+## Windows provider credentials
+
+Windows Settings uses a native credential dialog and the current user's Windows
+Credential Manager generic entry `KAT/OpenAI`. Provider keys never cross React IPC,
+enter SQLite, or appear in logs. Native commands expose booleans only, plus the
+existing authenticated Core connection after restart. Key buffers are zeroized
+where Rust/Win32 APIs permit. Core necessarily receives the provider key in its
+private child environment and the SDK holds it in memory; same-user malware or
+administrators are outside this process-isolation boundary.
+
+Explicit nonempty `KAT_OPENAI_API_KEY`, then `OPENAI_API_KEY`, override the vault
+for development; Settings identifies this override. Development `.env` remains
+explicitly opt-in. Save/replace validates before writing; cancel preserves the
+old key and Core. Remove needs explicit UI confirmation. A failed vault operation
+does not restart Core. Successful changes restart the owned Core and refresh its
+in-memory bearer token; conversations and approvals remain in SQLite. Unsupported
+platforms report that native storage is unavailable rather than storing plaintext.

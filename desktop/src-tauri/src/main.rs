@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use kat_desktop::credentials::{self, CredentialChangeResult, ProviderCredentialsStatus};
 use kat_desktop::{development_spec, log_event, packaged_spec, CoreConnection, CoreProcess};
 use std::{
     path::PathBuf,
@@ -72,6 +73,54 @@ async fn restart_core(state: tauri::State<'_, ManagedRuntime>) -> Result<CoreCon
     .map_err(|_| "KAT Core restart worker failed.".to_owned())?
 }
 
+#[tauri::command]
+async fn provider_credentials_status() -> Result<ProviderCredentialsStatus, String> {
+    tauri::async_runtime::spawn_blocking(credentials::provider_credentials_status)
+        .await
+        .map_err(|_| "KAT credential status worker failed.".to_owned())?
+}
+
+#[tauri::command]
+async fn configure_provider_credentials(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedRuntime>,
+) -> Result<CredentialChangeResult, String> {
+    #[cfg(windows)]
+    let parent_window = window
+        .hwnd()
+        .map_err(|_| "KAT could not locate the desktop window.".to_owned())?
+        .0 as usize;
+    #[cfg(not(windows))]
+    let parent_window = {
+        let _ = window;
+        0
+    };
+    let runtime = Arc::clone(state.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = runtime
+            .lock()
+            .map_err(|_| "KAT runtime state is unavailable.")?;
+        credentials::configure_provider_credentials(parent_window, || runtime.restart())
+    })
+    .await
+    .map_err(|_| "KAT credential configuration worker failed.".to_owned())?
+}
+
+#[tauri::command]
+async fn remove_provider_credentials(
+    state: tauri::State<'_, ManagedRuntime>,
+) -> Result<CredentialChangeResult, String> {
+    let runtime = Arc::clone(state.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = runtime
+            .lock()
+            .map_err(|_| "KAT runtime state is unavailable.")?;
+        credentials::remove_provider_credentials(|| runtime.restart())
+    })
+    .await
+    .map_err(|_| "KAT credential removal worker failed.".to_owned())?
+}
+
 fn main() {
     let application = tauri::Builder::default()
         .setup(|app| {
@@ -126,7 +175,13 @@ fn main() {
             log_event(&data_dir, "window_ready", "native window created");
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![core_connection, restart_core])
+        .invoke_handler(tauri::generate_handler![
+            core_connection,
+            restart_core,
+            provider_credentials_status,
+            configure_provider_credentials,
+            remove_provider_credentials
+        ])
         .build(tauri::generate_context!())
         .expect("KAT could not initialize its desktop window");
 

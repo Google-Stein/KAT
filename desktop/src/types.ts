@@ -2,6 +2,16 @@ export interface CoreConnection {
   base_url: string;
   token: string;
 }
+export interface ProviderCredentialsStatus {
+  supported: boolean;
+  stored: boolean;
+  environment_configured: boolean;
+}
+export interface ProviderCredentialsChange {
+  changed: boolean;
+  connection: CoreConnection | null;
+  status: ProviderCredentialsStatus;
+}
 export interface Health {
   status: 'ok';
   version: string;

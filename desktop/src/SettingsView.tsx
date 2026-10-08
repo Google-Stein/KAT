@@ -1,23 +1,49 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, KeyRound, Save, ShieldCheck } from 'lucide-react';
-import type { Settings, SettingsUpdate } from './types';
+import { CheckCircle2, Save, ShieldCheck } from 'lucide-react';
+import { ProviderCredentialsView } from './ProviderCredentialsView';
+import type { ProviderCredentialsStatus, Settings, SettingsUpdate } from './types';
 
 interface Props {
   settings: Settings | null;
   saving: boolean;
   saved: boolean;
   onSave: (settings: SettingsUpdate) => void;
+  native: boolean;
+  credentials: ProviderCredentialsStatus | null;
+  credentialsLoading: boolean;
+  credentialsNotice: string | null;
+  credentialsStatusError: boolean;
+  credentialsChanging: boolean;
+  onRefreshCredentials: () => void;
+  onConfigureCredentials: () => void;
+  onRemoveCredentials: () => void;
 }
 
-export function SettingsView({ settings, saving, saved, onSave }: Props) {
+export function SettingsView({
+  settings,
+  saving,
+  saved,
+  onSave,
+  native,
+  credentials,
+  credentialsLoading,
+  credentialsNotice,
+  credentialsStatusError,
+  credentialsChanging,
+  onRefreshCredentials,
+  onConfigureCredentials,
+  onRemoveCredentials,
+}: Props) {
   const [model, setModel] = useState('');
   const [requireApproval, setRequireApproval] = useState(false);
+  const savedModel = settings?.model;
+  const savedRequireApproval = settings?.require_approval_for_low_risk;
   useEffect(() => {
-    if (settings) {
-      setModel(settings.model);
-      setRequireApproval(settings.require_approval_for_low_risk);
-    }
-  }, [settings]);
+    if (savedModel !== undefined) setModel(savedModel);
+  }, [savedModel]);
+  useEffect(() => {
+    if (savedRequireApproval !== undefined) setRequireApproval(savedRequireApproval);
+  }, [savedRequireApproval]);
   return (
     <main className="content-view">
       <header className="workspace-header">
@@ -71,16 +97,18 @@ export function SettingsView({ settings, saving, saved, onSave }: Props) {
                 disabled={saving}
               />
               <p className="field-hint">Use a model available to your OpenAI account.</p>
-              <div className={`key-status ${settings.api_key_configured ? 'configured' : ''}`}>
-                <KeyRound size={19} />
-                <div>
-                  <strong>{settings.api_key_configured ? 'API key configured' : 'API key required'}</strong>
-                  <span>
-                    Set OPENAI_API_KEY in your local Core environment, then restart KAT. Keys stay outside the
-                    desktop interface.
-                  </span>
-                </div>
-              </div>
+              <ProviderCredentialsView
+                configured={settings.api_key_configured}
+                native={native}
+                status={credentials}
+                loading={credentialsLoading}
+                busy={saving}
+                notice={credentialsNotice}
+                statusError={credentialsStatusError}
+                onRefresh={onRefreshCredentials}
+                onConfigure={onConfigureCredentials}
+                onRemove={onRemoveCredentials}
+              />
               <p className="data-note">
                 History is stored on this device. Conversation context is sent to OpenAI.
               </p>
@@ -139,7 +167,7 @@ export function SettingsView({ settings, saving, saved, onSave }: Props) {
               </span>
               <button type="submit" className="primary-button" disabled={saving || !model.trim()}>
                 <Save size={16} />
-                {saving ? 'Saving…' : 'Save settings'}
+                {credentialsChanging ? 'Please wait…' : saving ? 'Saving…' : 'Save settings'}
               </button>
             </div>
           </form>
