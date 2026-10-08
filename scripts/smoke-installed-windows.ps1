@@ -1,4 +1,4 @@
-param([string]$Installer = '')
+param([string]$Installer = '', [switch]$LocalInference)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repo = Split-Path -Parent $PSScriptRoot
@@ -32,6 +32,7 @@ if ($LASTEXITCODE -ne 0) { throw '[persistence] Failed to write smoke conversati
 & $python -c 'import os; from pathlib import Path; from kat_core.storage import Store; s=Store(Path(os.environ["KAT_INSTALL_SMOKE_DATABASE"])); c=[c for c in s.sessions() if c.title=="Installer persistence smoke"]; assert c and any(m.content=="Installer persistence marker" for m in s.messages(c[0].id)); s.close()'
 if ($LASTEXITCODE -ne 0) { throw '[persistence] Conversation did not survive installed restart.' }
 Write-Output 'PASS: installed application relaunch preserves conversation data.'
+if ($LocalInference) { & (Join-Path $PSScriptRoot 'test-local-windows.ps1') -Executable $exe }
 $uninstallers = @(Get-ChildItem $install -Filter '*uninstall*.exe')
 if ($uninstallers.Count -ne 1) { throw '[uninstaller] Cannot locate installed uninstaller.' }
 $uninstall = Start-Process -FilePath $uninstallers[0].FullName -ArgumentList '/S' -Wait -PassThru

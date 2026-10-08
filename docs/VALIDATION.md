@@ -170,3 +170,35 @@ Artifacts from this successful run:
 Additional cloud checks passed during stabilization: full native build and Clippy using the CLI's direct `tauri/custom-protocol` dependency feature; full Windows target/all-targets compile and Clippy checks; 9 local native unit tests and 3 explicit Core integrations; Python Ruff/format/mypy including smoke/integration files; standalone and packaged Linux Core restart smoke; frontend tests/lint/format/type/build; PowerShell parsing and all 13 diagnostic regression checks. These supplement the Windows run, rather than replacing it.
 
 Remaining validation limits: live OpenAI access requires the owner's configured key; NSIS installation/uninstallation, signing, updates and manual Windows desktop usability testing were not exercised by this executable-only gate. Feature development remains paused; the unpushed credential-management work is preserved locally on `wip/windows-credential-setup` and is absent from these release corrections.
+
+## 0.1.1 installed-application checkpoint
+
+[Run 37730853420](https://github.com/Google-Stein/KAT/actions/runs/37730853420)
+completed with **Core, desktop and Windows all successful**, on source `f085422`.
+Windows packaging/tests used **CPython 3.12.10**. This supersedes the foundation's
+portable-only installer limitation for the scenarios measured below.
+
+| Executed check | Actual outcome |
+| --- | --- |
+| Locked Python tests, Ruff, format, mypy; actual Core startup/auth/persistence | Linux 92 passed; checks passed |
+| Frontend tests, ESLint, Prettier, TypeScript, Vite | 25 passed; checks passed |
+| Windows NSIS build and portable GUI smoke | Passed; real window, direct authenticated packaged child, 401 without bearer, owned listener |
+| `smoke-installed-windows.ps1` | Passed current-user silent install into a path containing spaces, installed GUI/Core startup, normal and forced close, persisted conversation relaunch, uninstall retaining intact SQLite |
+| Windows Python tests / packaged Core smoke | 91 passed, 1 POSIX skip; smoke passed |
+| Windows native unit / explicit integration tests | 21 passed, 5 deliberate ignores; all 3 explicit integrations passed |
+| Actual Windows Credential Manager synthetic entry | Native write/read/replace/remove passed; no owner credential touched |
+| Installer/executable/diagnostic uploads | All passed; installer artifact 11530166466, executable 11530080926, diagnostics 11529589853 |
+
+Installed normal startup used desktop PID 2964 / Core PID 8196; forced-stop startup
+used 7028 / 9952. Relaunch checks used 5820 / 5068 and 3760 / 8228. Each window
+existed, native authenticated health passed, unauthenticated health returned 401,
+and both Core/listener disappeared at shutdown. Uninstall retained an integrity-
+checked conversation database.
+
+The owner reports personally exercising live OpenAI conversation, time, Notepad
+approval/launch, provider errors and persistence on 0.1. This is **owner-reported
+manual evidence**, not an agent-run live account test. No live OpenAI credential
+is available in this cloud task. Native vault tests and SDK protocol simulations
+are separate from interactive key-entry/account validation. Installer signing,
+auto-update and upgrade UX remain future hardening. A later real local-inference
+and installed-WebView gate will be reported separately when it actually passes.
