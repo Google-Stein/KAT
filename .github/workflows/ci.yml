@@ -114,6 +114,7 @@ jobs:
           name: kat-windows-installer
           path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
       - name: Upload executable
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: kat-windows-executable

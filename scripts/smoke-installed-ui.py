@@ -149,12 +149,32 @@ def main() -> None:
             return
 
         stage = "local-provider-selection"
-        provider = window.child_window(title="Provider", control_type="ComboBox")
-        provider.wait("visible enabled")
+        print(
+            "UI selectors: "
+            + repr(
+                [
+                    (item.element_info.control_type, item.window_text())
+                    for item in window.descendants()
+                    if item.element_info.control_type in {"ComboBox", "Edit"}
+                ]
+            ),
+            flush=True,
+        )
+        # Chromium exposes select names through the selected option on Windows.
+        # The provider is the first select in the Settings form.
+        provider = window.descendants(control_type="ComboBox")[0]
         provider.set_focus()
         provider.type_keys("{HOME}{DOWN}{ENTER}")
-        model = window.child_window(title="Model", control_type="Edit")
-        model.wait("visible enabled")
+        stage = "local-model-selection"
+        # An input with a datalist is exposed as a ComboBox rather than Edit.
+        model = wait_for(
+            lambda: (
+                controls[1]
+                if len(controls := window.descendants(control_type="ComboBox")) >= 2
+                else None
+            )
+        )
+        assert model.is_enabled()
         model.set_focus()
         model.type_keys("^a" + args.model, with_spaces=True)
         wait_for(lambda: visible_text("Local backend and selected model are ready."), 30)
