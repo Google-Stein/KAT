@@ -184,6 +184,7 @@ def test_low_risk_approval_policy_persists(
     "name,arguments",
     [
         ("arbitrary_shell", {"command": "rm -rf /"}),
+        ("private-conversation-fragment-secret-key", {}),
         ("get_local_time", {"unexpected": "secret-input"}),
         ("open_application", {"application_id": "demo;cmd"}),
         ("open_application", {"application_id": "unconfigured"}),
@@ -203,6 +204,7 @@ def test_untrusted_tool_arguments_rejected_and_audited(
     audit = client.get("/audit").json()
     assert audit[0]["event"] == "tool_rejected"
     assert "secret-input" not in str(audit)
+    assert "private-conversation-fragment-secret-key" not in str(audit)
 
 
 def test_keyless_and_provider_failures_have_clear_safe_errors(

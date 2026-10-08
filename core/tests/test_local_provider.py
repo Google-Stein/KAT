@@ -288,3 +288,35 @@ async def test_cloud_backed_ollama_models_are_rejected_before_context_is_sent(
         )
     assert caught.value.code.value == "provider_local_model_required"
     assert calls == ["/api/show"]
+
+
+@pytest.mark.asyncio
+async def test_probe_rejects_remote_alias_instead_of_recommending_its_installation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from kat_core.errors import ProviderFailure
+
+    def backend(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/tags"
+        return httpx.Response(
+            200,
+            json={
+                "models": [
+                    {"name": "innocent-alias:latest", "remote_model": "remote-model"},
+                ]
+            },
+        )
+
+    monkeypatch.setattr(
+        OllamaRuntime,
+        "client",
+        lambda self, timeout=60: httpx.AsyncClient(
+            transport=httpx.MockTransport(backend),
+            base_url=self.endpoint,
+        ),
+    )
+    with pytest.raises(ProviderFailure) as caught:
+        await OllamaRuntime("http://127.0.0.1:11434").probe(
+            SettingsUpdate(provider="ollama", model="innocent-alias")
+        )
+    assert caught.value.code.value == "provider_local_model_required"

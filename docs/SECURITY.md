@@ -16,9 +16,9 @@ Approval is durable and specific to the stored action/arguments. A decision is c
 
 ## Secrets and privacy
 
-Keep `OPENAI_API_KEY` (or the preferred `KAT_OPENAI_API_KEY` alias) in a process environment or an ignored `.env` file. Do not commit it, put it in a frontend build, save it in SQLite, or include it in logs. Core reports only whether the key is configured. SDK tracing is disabled so chat content is not additionally exported to a trace service.
+Normal Windows use stores OpenAI keys in Windows Credential Manager through a native masked dialog. For development, optional `OPENAI_API_KEY` (or preferred `KAT_OPENAI_API_KEY`) environment overrides and an explicitly loaded ignored `.env` file are supported. Do not commit it, put it in a frontend build, save it in SQLite, or include it in logs. Core reports only whether the key is configured. SDK tracing is disabled so chat content is not additionally exported to a trace service.
 
-OpenAI requests transmit conversation context and tool descriptions/results needed for that turn. This is not an offline assistant. Review the model provider's data handling separately. There is no telemetry integration in this bootstrap.
+OpenAI requests transmit conversation context and tool descriptions/results needed for that turn. Local Ollama selection uses installed local weights without OpenAI; cloud-backed Ollama models are rejected before context is sent. Review the model provider's data handling separately. There is no telemetry integration in this bootstrap.
 
 The native launcher creates a fresh local API token each run, passes it to the child through the process environment, and holds it in memory. The browser development token input is memory-only. A standalone CLI may use a private token file; protect it as a secret and do not put it in a shared directory.
 
@@ -26,7 +26,7 @@ SQLite data and local logs are sensitive user data and are not encrypted in this
 
 ## Audit and observability
 
-Tool requests, approval requirements/decisions, execution results, timestamps, and errors are recorded locally. Provider and startup failures use useful error codes without echoing secret-bearing raw exceptions. Audit events are application records, not a tamper-proof forensic store: another process with access to the user's files can alter them.
+Tool requests, approval requirements/decisions, execution results, timestamps, and errors are recorded locally. Provider and startup failures use useful error codes without echoing secret-bearing raw exceptions. Production file/stream handlers filter raw provider/SDK HTTP diagnostics at every level; KAT emits sanitized categories and timing/status metadata instead. Audit events are application records, not a tamper-proof forensic store: another process with access to the user's files can alter them.
 
 ## Reporting
 

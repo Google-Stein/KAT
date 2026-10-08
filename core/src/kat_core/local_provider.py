@@ -76,6 +76,13 @@ class OllamaRuntime:
             items = tags.get("models")
             if not isinstance(items, list):
                 raise ProviderFailure(ProviderErrorCode.MALFORMED_RESPONSE)
+            require_local_model({}, settings.model)
+            for item in items:
+                if isinstance(item, dict) and item.get("name") in {
+                    settings.model,
+                    settings.model + ":latest",
+                }:
+                    require_local_model(item, settings.model)
             models = sorted(
                 {
                     item["name"]

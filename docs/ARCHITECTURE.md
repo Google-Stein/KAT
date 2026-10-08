@@ -9,9 +9,14 @@ flowchart LR
   UI -->|authenticated local HTTP| Core
   Core --> Store[(Local SQLite)]
   Core --> Runtime[Model runtime protocol]
-  Runtime --> SDK[OpenAI Agents SDK]
+  Runtime --> Providers[Explicit provider registry]
+  Providers --> SDK[OpenAI Agents SDK]
+  Providers --> Local[Ollama adapter]
   SDK --> OpenAI[OpenAI model]
-  SDK --> Registry[Typed tool registry]
+  Local --> Backend[Loopback Ollama / local weights]
+  SDK --> Dispatch[Shared tool dispatcher]
+  Local --> Dispatch
+  Dispatch --> Registry[Typed tool registry]
   Registry --> Permissions[Risk and approval policy]
   Permissions --> Store
   Permissions -->|approved allowlisted action| OS[Local operating system]
@@ -19,7 +24,7 @@ flowchart LR
 
 The native launcher owns the Core process. It generates an ephemeral bearer token, passes it to the child through its environment, and returns the connection information to the UI through a narrowly scoped native command. The UI holds the token in memory. Core listens only on loopback, on port 42800 by default.
 
-Core is a Python package with separate API, schemas, storage, orchestration, provider runtime, tools, permissions, and configuration responsibilities. The OpenAI Agents SDK is the initial runtime adapter, not a dependency of the desktop or persistence contract. The injected runtime protocol allows deterministic tests and future provider replacement.
+Core is a Python package with separate API, schemas, storage, orchestration, provider runtime, tools, permissions, and configuration responsibilities. The OpenAI Agents SDK is the initial runtime adapter, not a dependency of the desktop or persistence contract. The runtime protocol allows deterministic tests and replaceable providers; the local adapter shares orchestration, permissions and storage with the SDK adapter.
 
 ## Data and conversation
 
@@ -58,6 +63,8 @@ Every endpoint requires `Authorization: Bearer <runtime-token>`, including healt
 | `/approvals/{id}/decision` | POST | Allow/deny with durable execution claim |
 | `/settings` | GET, PUT | Model/provider and low-risk permission preference |
 | `/audit` | GET | Bounded tool and application event history |
+| `/providers` | GET | Implemented adapter capability descriptors |
+| `/providers/probe` | POST | Nonsecret local discovery/status or OpenAI configuration presence |
 
 FastAPI's OpenAPI schema is the authoritative field-level API reference, available with local authentication. React uses typed API models. Version future breaking changes deliberately rather than relying on UI assumptions.
 

@@ -50,7 +50,10 @@ class ChatService:
                     self.store.add_audit(
                         "tool_rejected",
                         session_id=session_id,
-                        tool_name=name[:100],
+                        tool_name=name
+                        if name in {item.name for item in self.registry.specs()}
+                        else None,
+                        details={"reason": "invalid_or_disallowed_request"},
                         error="Invalid or disallowed tool request",
                     )
                     return {"status": "failed", "error": "Invalid or disallowed tool arguments"}
