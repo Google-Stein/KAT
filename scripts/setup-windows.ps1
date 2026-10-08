@@ -60,4 +60,4 @@ try {
 } finally {
     Pop-Location
 }
-Write-Host 'KAT dependencies are ready. Configure OPENAI_API_KEY in your environment or root .env, then run scripts/dev-windows.ps1.'
+Write-Host 'KAT dependencies are ready. Run scripts/dev-windows.ps1 and configure your OpenAI API key through Settings. Environment/.env overrides remain available for development.'

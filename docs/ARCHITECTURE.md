@@ -60,3 +60,18 @@ Every endpoint requires `Authorization: Bearer <runtime-token>`, including healt
 | `/audit` | GET | Bounded tool and application event history |
 
 FastAPI's OpenAPI schema is the authoritative field-level API reference, available with local authentication. React uses typed API models. Version future breaking changes deliberately rather than relying on UI assumptions.
+
+Windows native startup resolves provider credentials before starting the owned
+Core. Native Settings commands enter, replace or remove the current user's KAT
+vault entry and restart Core; the UI receives status and a fresh Core connection.
+The existing suspended-spawn Job Object boundary remains intact. NSIS installs
+for the current user and bundles the full PyInstaller Core directory. Uninstall
+removes application files and retains `%LOCALAPPDATA%\com.kat.assistant` and the
+credential entry, allowing reinstall to recover the workspace. Remove the key
+through Settings before uninstall if desired; data deletion is an explicit owner
+operation. The installer never installs or downloads model weights.
+
+`VERSION` is the release metadata source. Run `python scripts/version.py` after
+changing it; Python/npm/Cargo/Tauri manifests and lockfiles carry generated copies
+for their tooling. CI runs `python scripts/version.py --check` to prevent drift.
+Only green, validated source commits may receive release tags.

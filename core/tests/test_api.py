@@ -4,6 +4,7 @@ import pytest
 from conftest import HEADERS, FakeRuntime
 from fastapi.testclient import TestClient
 
+from kat_core import __version__
 from kat_core.app import create_app
 from kat_core.config import CoreConfig
 from kat_core.tools import ToolRegistry
@@ -50,7 +51,7 @@ def test_health_and_persistent_conversation(
 ) -> None:
     assert client.get("/health").json() == {
         "status": "ok",
-        "version": "0.1.0",
+        "version": __version__,
         "provider_ready": True,
     }
     session_id = new_session(client)

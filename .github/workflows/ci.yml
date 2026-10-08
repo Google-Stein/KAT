@@ -23,6 +23,8 @@ jobs:
           uv run ruff check .
           uv run ruff format --check .
           uv run mypy
+      - name: Release metadata consistency
+        run: python scripts/version.py --check
       - name: Real Core process smoke check
         run: python scripts/smoke-core.py
   desktop:
@@ -61,12 +63,15 @@ jobs:
         with:
           node-version: '24'
       - uses: dtolnay/rust-toolchain@stable
-      - name: Build packaged Windows executable
+      - name: Build Windows application and installer
         shell: pwsh
-        run: ./scripts/build-windows.ps1 -NoBundle -PythonExecutable '${{ steps.python.outputs.python-path }}'
+        run: ./scripts/build-windows.ps1 -PythonExecutable '${{ steps.python.outputs.python-path }}'
       - name: Verify packaged desktop window and Core lifecycle
         shell: pwsh
         run: ./scripts/smoke-windows.ps1
+      - name: Install, launch, persist, and uninstall
+        shell: pwsh
+        run: ./scripts/smoke-installed-windows.ps1
       - name: Windows Core and native integration tests
         shell: pwsh
         run: |
@@ -87,6 +92,11 @@ jobs:
           name: kat-windows-diagnostics
           path: .local/windows-smoke/
           if-no-files-found: ignore
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: kat-windows-installer
+          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
       - name: Upload executable
         uses: actions/upload-artifact@v4
         with:
