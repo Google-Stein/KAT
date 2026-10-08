@@ -90,6 +90,17 @@ def main() -> None:
                                     "test": "fresh-time",
                                     "attempt": attempt,
                                     "fresh_results": len(fresh),
+                                    "safe_tool_events": [
+                                        {
+                                            "event": event["event"],
+                                            "tool": event["tool_name"],
+                                            "reason": event["details"].get("reason"),
+                                            "status": event["details"].get("status"),
+                                        }
+                                        for event in client.get("/audit").json()
+                                        if event["session_id"] == session
+                                        and event["event"].startswith("tool_")
+                                    ],
                                     "assistant_reply": response["assistant_message"]["content"][
                                         :1000
                                     ],

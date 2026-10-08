@@ -71,9 +71,20 @@ export function MemoryView({ api, enabled, projects, onToggle, onProject, onSour
           <span className="eyebrow">WORKSPACE / YOUR CONTEXT</span>
           <h1>Memory</h1>
         </div>
-        <button className="primary-button" onClick={() => setEditor('add')} disabled={busy}>
-          <Plus size={16} /> Add memory
-        </button>
+        <div className="memory-actions">
+          <button
+            onClick={() => {
+              setSelected(null);
+              setRefresh((r) => r + 1);
+            }}
+            disabled={busy}
+          >
+            Refresh memories
+          </button>
+          <button className="primary-button" onClick={() => setEditor('add')} disabled={busy}>
+            <Plus size={16} /> Add memory
+          </button>
+        </div>
       </header>
       <section className="memory-policy">
         <div>

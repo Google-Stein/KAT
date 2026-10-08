@@ -126,7 +126,7 @@ class OllamaRuntime:
         memory_context: list[MemoryContextItem] | None = None,
     ) -> str:
         context: list[dict[str, Any]] = [
-            {"role": "system", "content": instructions(registry)},
+            {"role": "system", "content": instructions(registry, has_memory=bool(memory_context))},
             *working_context(messages, memory_context),
         ]
         async with self.client() as client:

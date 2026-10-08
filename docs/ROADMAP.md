@@ -68,7 +68,8 @@ approved implementation from future ideas.
 The bounded implementation adds reviewed Add/Remember, editable records and
 revisions, stable project scopes, lexical retrieval, response usage inspectors,
 where-used/source links and removal of current/revision/search wording.
-SQLite is not encrypted by KAT and credentials/highly sensitive memory are refused.
+SQLite is not encrypted by KAT. Identifiable credentials and non-normal sensitivity
+categories are refused; highly sensitive storage is unsupported.
 Release requires green exact-source Core/Desktop/Windows and actual installed
 Ollama create/restart/use/edit/forget validation; evidence is in VALIDATION.md.
 

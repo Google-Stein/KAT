@@ -120,7 +120,8 @@ is not persisted as a chat/tool message or fed to future cloud requests. Replies
 are ordinary transcript data and may themselves mention remembered information.
 
 Usage stores IDs, inserted revision, session, assistant message, local provider
-and timestamp. Inspection resolves that revision, so an edit never rewrites prior
+and timestamp, committed atomically with the assistant reply. Inspection resolves
+that revision, so an edit never rewrites prior
 evidence; after Forget it shows an identifier-only forgotten marker. Provenance
 stores source IDs/role, never copied source text. Missing sources are unavailable.
 The UI offers a separate Memory workspace, review forms and response inspectors.

@@ -196,6 +196,11 @@ On Linux, Tauri additionally needs GTK3, WebKitGTK 4.1, an application-indicator
 
 ## Data, observability, and troubleshooting
 
+- **Memory is not recalled:** retrieval must be enabled, the provider must be Local/Ollama, and the record must be confirmed/current, unexpired and relevant to the latest question. Select its project scope in the conversation. FTS5 is lexical: paraphrases or synonyms may not match. Pins cannot force an unrelated result.
+- **A forgotten statement still appears in chat:** forgetting removes memory records/revisions/search entries, not existing transcript wording. Start a new conversation to test zero retrieval; inspect the response's memory evidence rather than treating old chat as memory.
+- **Memory edit conflict:** KAT retains your draft and refuses a silent overwrite. Cancel the review, choose Refresh memories, inspect the latest revision and review the edit again.
+- **Memory input refused:** never save credentials or sensitive vault content. Only normal sensitivity is supported; review the wording/scope and use timezone-aware dates in API requests. Rejected private input is not reflected in the error response.
+
 - Standalone Core data defaults to `%LOCALAPPDATA%\KAT` on Windows and `$XDG_DATA_HOME/kat` (normally `~/.local/share/kat`) on Linux. Desktop-managed data uses `%LOCALAPPDATA%\com.kat.assistant` on Windows and `$XDG_DATA_HOME/com.kat.assistant` on Linux. `KAT_DATA_DIR`/`--data-dir` can override standalone storage.
 - SQLite stores sessions, messages, settings, approvals, and audit events. API keys and bearer tokens are excluded. Back up with Core stopped; local data is not encrypted by this version.
 - **Provider not configured:** select Local/Ollama or save an OpenAI key through the native Settings dialog. Settings reports key presence; a chat checks account validity. Optional environment overrides take precedence over the vault.
