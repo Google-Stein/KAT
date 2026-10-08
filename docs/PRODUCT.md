@@ -25,3 +25,7 @@ Voice, wake-word detection, background autonomy, scheduling, email/calendar inte
 ## Acceptance criteria
 
 The desktop connects to an authenticated local Core; real OpenAI-backed conversations use persisted context; session history can be recovered after a restart; tools are validated and governed by risk; application launches require approval; requests, decisions, outcomes, and errors are auditable. Automated deterministic tests and production build checks must pass. Native Windows launch and live-provider behavior require their respective Windows runtime and configured API key.
+
+## Approved release sequence
+
+The validated 0.1 foundation is followed by 0.1.1 installed-application readiness, secure credential storage and better provider errors. Release 0.2 adds local AI inference with OpenAI optional. Then implementation stops for owner review of a memory architecture proposal. Persistent personal intelligence in 0.3+ requires explicit approval at that gate. See [ROADMAP.md](ROADMAP.md) for scope and acceptance criteria. The initial transcript storage remains distinct from personal memory.

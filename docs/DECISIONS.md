@@ -39,3 +39,7 @@
 ## ADR 010: Framework build mode and complete Windows process ownership
 
 **Accepted.** Use `tauri::is_dev()` to select development versus packaged resources and navigation policy. Tauri CLI enables `tauri/custom-protocol` directly; checking KAT's similarly named forwarding feature incorrectly selects development Python in a built release. On Windows, start Core suspended, assign it to the lifetime Job Object and then resume it. Ordinary descendants, including the venv redirector's Python process, inherit ownership. Only approved application launches request explicit breakaway. This closes both the spawn/assignment race and unintentional silent breakaway without broadening tool permissions.
+
+## ADR 011: Installed application, local inference, then memory review
+
+**Accepted product direction.** Preserve the validated 0.1 foundation. Prioritize 0.1.1 installation, Windows Credential Manager storage and actionable provider errors; then 0.2 local inference behind the existing runtime abstraction, with OpenAI optional and no silent cloud fallback. After 0.2, stop and present a memory architecture proposal for explicit owner review before implementing 0.3+ personal intelligence. Saved transcripts do not satisfy or bypass that review. Runtime/model selection and the memory design remain future decisions. Unrelated major capabilities remain outside this sequence. Scope and acceptance criteria are recorded in [ROADMAP.md](ROADMAP.md).
