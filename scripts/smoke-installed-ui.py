@@ -78,6 +78,7 @@ def main() -> None:
         # the actual Settings pane with normal mouse input when it is offscreen.
         if control.is_visible():
             return
+        window.set_focus()
         rect = window.rectangle()
         coords = (rect.left + rect.width() * 3 // 4, rect.top + rect.height() // 2)
         mouse.scroll(coords=coords, wheel_dist=40)
@@ -106,6 +107,7 @@ def main() -> None:
         app = Application(backend="uia").connect(process=process.pid, timeout=30)
         window = app.window(title="KAT")
         window.wait("visible", timeout=45)
+        window.set_focus()
         button("Settings")
 
     def close() -> None:
@@ -408,6 +410,9 @@ def main() -> None:
                     }
                 ),
                 flush=True,
+            )
+            assert control.is_visible() and control.is_enabled(), (
+                "Memory focus/scroll moved or disabled workspace navigation"
             )
             stage = source_stage + ":new-session-click"
             control.click_input()
