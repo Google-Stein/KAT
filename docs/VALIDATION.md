@@ -246,3 +246,91 @@ live account/billing test. The full 0.2 gate now uses normal Windows accessibili
 with read-only inspection of its disposable test database; no CDP/debugging port
 or production test command is introduced. Superseded CDP full runs were canceled
 after this diagnosis rather than retried without a changed hypothesis.
+
+## 0.2 installed local-inference release gate — passed
+
+[Run **37737345322**](https://github.com/Google-Stein/KAT/actions/runs/37737345322)
+completed at **2026-10-08 06:31:23 UTC**, source
+**`54b4a54cc51290afee07a60cd492b9bd793477d9`**. **Core, desktop and Windows
+all passed.** This establishes the 0.2 installed/local-inference milestone.
+The earlier sections record historical foundation results; the current milestone
+counts and commands are below. Final bounded UI polish uses the authenticated Core
+version and saved provider for display. The release publication workflow requires
+all three jobs to pass again on the exact final tagged source and publishes only
+that run's installer. See the release notes for that final run.
+
+| Actual command/check | Result |
+| --- | --- |
+| `uv sync --project core --frozen --group dev` | Locked installs passed; Linux Python 3.12.14 and Windows 3.12.10 |
+| `uv run --directory core pytest tests ../tests/integration -q` | **139 passed** in Linux/cloud; SDK mocked HTTP and local mock transport remain deterministic tests |
+| Core Ruff check / format / strict mypy | All passed; 16 typed source modules |
+| `python scripts/version.py --check` | Passed; root VERSION is 0.2.0, generated Python/npm/Cargo/Tauri metadata agrees |
+| `python scripts/smoke-core.py` | Passed actual process/auth/401/missing-key/persistence/restart/close |
+| `npm ci`, `npm test`, ESLint, Prettier, TypeScript, Vite | **26 frontend tests passed**; all checks/build passed |
+| `npm audit --audit-level=high` in cloud | Passed, zero reported vulnerabilities |
+| Linux native unit tests / formatting | **20 passed, 4 deliberate ignores**; formatting passed |
+| `scripts/build-windows.ps1 -PythonExecutable <setup-python executable>` | Real current-source desktop + PyInstaller Core + NSIS installer passed, CPython **3.12.10 x64** |
+| `scripts/smoke-windows.ps1` | Real window, exact owned packaged child/listener, native authenticated health, 401 without bearer, normal/forced cleanup all passed |
+| `scripts/smoke-installed-windows.ps1 -LocalInference` | Current-user install into a path with spaces, installed lifecycle, persistence, actual UI/local inference and uninstall all passed |
+| `scripts/test-local-windows.ps1` / `smoke-local.py` | Actual Ollama **0.40.1**, SHA-256-verified official runtime; digest-verified **Qwen3:1.7b** weights; real Windows CPU conversation/time/approved native Notepad all passed, no OpenAI key/client use |
+| `scripts/smoke-installed-ui.py` against installed production WebView | Native key cancel/save/replace, restart persistence and removal passed; local selection/readiness/save, greeting/time, Notepad UI approval, actual Notepad window and close/relaunch persistence all passed |
+| Windows Python unit/integration tests | **138 passed, 1 POSIX execute-bit skip** |
+| Windows packaged `smoke-core.py --executable .../kat-core.exe` | Passed actual authentication/keyless error/persistence/restart/close |
+| Windows native unit tests | **21 passed, 5 deliberate ignores**; includes actual synthetic Credential Manager write/read/replace/remove, descendant containment and approved breakaway |
+| Windows native tests with `--ignored --skip sleeper_fixture --skip launcher_fixture --test-threads=1` | All **3 explicit Core integrations passed** |
+| `tests/integration/test_windows_smoke_diagnostics.ps1` | All **13 diagnostics checks passed**; PowerShell syntax separately passed in cloud |
+| Installer / executable / diagnostic artifact uploads | Passed: **11532656974 / 11532801078 / 11532283777** |
+
+The installed test uses production controls and the native masked credential
+prompt. React never receives either fixture key. Inspection of its isolated
+SQLite database is read-only: provider/settings/chat/approval mutations occur
+through the UI. A real Notepad window opens only after the Allow once action,
+survives normal KAT close, and is then closed by the test. Normal and forced
+termination independently stop Core and release port 42800. Relaunch preserves
+local provider/model, conversation and audit. Uninstall removes the application
+while retaining an integrity-checked database; no owner data or credential is
+modified by the disposable CI account.
+
+Additional cloud checks passed: full Linux native build/Clippy and full Windows
+MSVC-target/all-targets compile/Clippy (`--features tauri/custom-protocol`, warnings
+denied); all 3 explicit native packaged/development/restart-worker integrations;
+Ruff/format including scripts/integration files; regenerated actual Linux
+PyInstaller Core (`--collect-all agents --collect-all openai --collect-submodules
+uvicorn --recursive-copy-metadata openai-agents`), packaged process smoke and
+standalone process smoke. The local route rejects cloud-backed Ollama metadata
+before sending context, rejects remote endpoints/redirects/proxies, and never
+constructs a cloud client on failed local requests. Audit/log redaction tests cover
+secret-bearing raw SDK diagnostics and rejected arbitrary tool-name text.
+
+### Installed-test investigation and fixes
+
+Runs 37734328219 and 37735460406 passed backend inference and credential UI but
+failed locating the offscreen provider selector. Actual accessibility diagnostics
+showed Provider and Model as **ComboBox** controls; the model's HTML datalist is
+not an Edit control. After removing a key, Settings remains scrolled down. The
+library's default visible-only lookup filtered out offscreen controls before they
+could be scrolled. The harness now resolves offscreen controls explicitly and
+scrolls the real pane through normal mouse input. Startup timeout stayed 45 seconds.
+
+Focused runs 37736422973 / 37736746052 isolated that lookup and the chat transition.
+The session row can be committed before React mounts its composer, so selecting
+the first Edit control raced with Settings. The harness now waits for the named
+Message KAT input and a new session ID. It waits for a stored reply and enabled
+composer after sending; Send correctly remains disabled when the draft is empty.
+[Focused run **37737115074**](https://github.com/Google-Stein/KAT/actions/runs/37737115074)
+passed the entire actual UI/local-model journey on the earlier packaged artifact.
+The subsequent full run above rebuilt and installed current source and passed all
+gates. These were harness corrections; debugging ports and relaxed production
+security were never introduced. Successful native dependency builds are cached
+before runtime checks; current application resources are always cleaned/rebuilt.
+
+### Remaining manual limits
+
+No agent-run live OpenAI account/billing test occurred; the owner-reported 0.1 live
+test remains distinct from SDK transport tests and synthetic key UX. RTX 4090 GPU
+performance and the recommended Qwen3:8b model remain owner-hardware checks; actual
+CI used a small CPU model. Cloud-machine Ollama registry access was denied, so
+real inference evidence comes from the Windows runner, not an invented Linux/GPU
+result. Release installers remain unsigned, automatic updates are absent, and
+interactive upgrade UX is not certified. Local SQLite/backups are not encrypted
+by KAT. No semantic memory has been implemented; review the memory proposal first.

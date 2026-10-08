@@ -24,7 +24,7 @@ Voice, wake-word detection, background autonomy, scheduling, email/calendar inte
 
 ## Acceptance criteria
 
-The desktop connects to an authenticated local Core; real OpenAI-backed conversations use persisted context; session history can be recovered after a restart; tools are validated and governed by risk; application launches require approval; requests, decisions, outcomes, and errors are auditable. Automated deterministic tests and production build checks must pass. Native Windows launch and live-provider behavior require their respective Windows runtime and configured API key.
+The desktop connects to an authenticated local Core; explicit local or OpenAI conversations use persisted context; session history can be recovered after a restart; tools are validated and governed by risk; application launches require approval; requests, decisions, outcomes, and errors are auditable. Automated deterministic tests and production build checks must pass. The real installed Windows/local-backend sequence is automated in CI. Live OpenAI account access and owner GPU performance are separate manual validations; see VALIDATION.md.
 
 ## Approved release sequence
 

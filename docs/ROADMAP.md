@@ -1,57 +1,86 @@
 # Roadmap
 
-The owner-approved sequence is **0.1 → 0.1.1 → 0.2 → STOP / REVIEW → 0.3+**. Complete and validate each release before moving to the next. This roadmap records product direction; future capabilities are not claims about the current implementation.
+The owner-approved sequence is **0.1 → 0.1.1 → 0.2 → STOP / REVIEW → 0.3+**.
+Implementation is now at the deliberate memory review gate. This document separates
+completed capabilities from proposals; later work requires new product decisions.
 
 ```mermaid
 flowchart TD
-  Foundation["0.1 — validated Windows foundation ✅"] --> Installed["0.1.1 — installed application, secure credentials, provider errors"]
-  Installed --> Local["0.2 — local AI runtime; OpenAI optional"]
-  Local --> Review["STOP / REVIEW — memory architecture proposal"]
-  Review -->|"Owner approval required"| Intelligence["0.3+ — persistent personal intelligence"]
+  Foundation["0.1 — validated foundation ✅"] --> Installed["0.1.1 — installer, secure credentials, provider errors ✅"]
+  Installed --> Local["0.2 — real local conversation and approved tools ✅"]
+  Local --> Review["STOP / REVIEW — memory proposal; no memory implemented"]
+  Review -->|"Explicit owner approval"| Intelligence["0.3+ — bounded personal memory"]
 ```
 
 ## 0.1: Foundation — complete
 
-Persistent text sessions, authenticated local Core, a Windows desktop, a typed tool registry, risk/approval policy and audit records are implemented. Core, frontend and Windows CI passed, including packaged window creation, owned Core authentication and normal/forced shutdown cleanup. See [VALIDATION.md](VALIDATION.md) for actual results and limits. Installed-application validation and live provider-account validation belong to subsequent work.
+Persistent text sessions, authenticated local Core, Windows desktop, typed tool
+registry, approvals and audit are implemented and Windows validated. The owner
+reports live OpenAI conversation, time, Notepad approval, errors and persistence.
+Agent-run SDK protocol tests remain distinct from that owner-reported evidence.
 
-## 0.1.1: Real installed application — next
+## 0.1.1: Installed Windows application — complete
 
-Deliver an application the owner can install and use without a development checkout or installed Python, Node.js or Rust toolchains.
+Published [v0.1.1](https://github.com/Google-Stein/KAT/releases/tag/v0.1.1) includes
+an NSIS installer and SHA-256 checksums. Normal launch needs no developer terminal,
+Python or Rust. Native masked key entry, current-user Windows Credential Manager,
+add/replace/remove/status, fresh authenticated Core restarts and safe provider
+error classification are implemented. Keys never enter React or SQLite.
 
-- Build and exercise the Windows installer: installation, installed-path launch, WebView2 prerequisites, normal/forced shutdown, upgrade and uninstall behavior. Preserve existing user data and define uninstall retention explicitly.
-- Add secure provider-key entry, replacement and removal backed by Windows Credential Manager. Keep secrets out of source, SQLite, browser storage and logs; return configuration status rather than stored credentials to the renderer.
-- Improve provider errors for invalid credentials, unavailable models, quota/rate limits, connectivity and timeouts. Show actionable recovery while keeping raw secret-bearing diagnostics out of the UI and audit log.
+Actual Windows CI exercised current-user installation into a path with spaces,
+GUI/authentication, normal/forced shutdown, persistence and data-preserving
+uninstall. Separate production accessibility tests exercised native key input,
+cancellation, replacement, restart persistence and removal. Signing, automatic
+updates and interactive upgrade UX remain future hardening.
 
-Acceptance requires green Core/frontend/native checks and real Windows installer/lifecycle validation. Credential tests must cover persistence across restart, replacement/removal and secret redaction. Provider-error tests must exercise the SDK adapter and API/UI behavior; simulated responses must be distinguished from live account validation. Document installation, configuration, troubleshooting and validation evidence.
+## 0.2: Local AI runtime — complete
 
-The locally preserved credential-management work is a starting point for review and integration, not a completed or published 0.1.1 feature. Reassess it against the stabilized launcher before reuse.
+An Ollama adapter and explicit provider registry share conversation/storage,
+validated tools, approvals and audit with the OpenAI SDK adapter. Settings exposes
+loopback-only address, local model discovery, readiness and tool capability.
+OpenAI remains optional; failed local inference never falls back to cloud.
+Cloud-backed Ollama aliases are rejected before conversation context is sent.
 
-## 0.2: Local AI runtime; OpenAI optional
+Actual Windows CPU inference used checksum-verified Ollama 0.40.1 and Qwen3:1.7b.
+The installed UI generated a greeting, invoked the time tool, requested Notepad,
+accepted owner-style approval, opened a real Notepad window and retained local
+routing/history across relaunch. Notepad survived normal KAT close. All practical
+Core/frontend/native/Windows release gates passed; exact runs, counts and commands
+are in [VALIDATION.md](VALIDATION.md).
 
-Add a local inference adapter behind the existing model-runtime abstraction. Local conversation must work without an OpenAI key and, once its runtime/model are installed, without cloud inference. Retain OpenAI as an explicitly selected optional provider. Do not silently send a local-provider conversation to a cloud service when local inference fails.
+Backend installation and weights are explicit, separate downloads. Qwen3:8b is
+the configurable starting recommendation for the owner's RTX 4090/24 GB VRAM;
+that GPU's performance has not been measured by CPU CI. Ollama owns its server and
+GPU lifecycle. No semantic memory, background extraction or automatic routing is
+included. Small final UI work makes the release version and local/cloud route
+visible in chat.
 
-Select the local engine and model based on Windows compatibility, hardware requirements, resource usage, licensing, conversation quality and validated tool-call behavior. Document model download consent, artifact verification, installation, provider selection and any separately owned runtime's lifecycle. Preserve authenticated Core access, durable sessions, argument validation, approvals and audit records across providers.
+## STOP / REVIEW: Memory architecture proposal — current
 
-Acceptance requires real local-model conversation on documented Windows hardware, restart persistence, provider switching, clear resource/startup failures and equivalent tool/permission safeguards. Mock adapter tests supplement actual local inference validation. This release does not introduce a separate personal memory system.
+Read [MEMORY_DESIGN_PROPOSAL.md](MEMORY_DESIGN_PROPOSAL.md). It recommends explicit,
+owner-confirmed, scoped memory, inspect/edit/forget controls, provenance, safe
+migrations and lexical retrieval before considering local embeddings. Memory is
+excluded from cloud requests in the proposed first slice. No proposed tables,
+retrieval pipeline, embedding model or consolidation code has been implemented.
 
-## STOP / REVIEW: Memory architecture proposal
+The owner must approve or revise consent, scopes, cloud policy, erasure semantics
+and sensitive-data policy before implementation. The proposal's existence is not
+approval. Existing saved transcripts remain separate from semantic memory.
 
-After 0.2, stop implementation of persistent personal intelligence and submit a memory architecture proposal to the owner. Do not begin memory infrastructure, ingestion, embeddings, retrieval or consolidation before explicit approval.
+## After approval: three bounded milestones
 
-The proposal must explain:
+1. Explicit remember/edit/forget, provenance and revisions, migration/recovery,
+   inspection UI and clear transcript/backup erasure semantics.
+2. Confirmed-only scoped lexical retrieval with a visible context inspector,
+   abstention, injection tests and no cloud memory transmission.
+3. Evaluate relevance, conflict/expiry handling and resource usage. Add a local
+   embedding adapter only if measured lexical failures justify it and its model
+   download is approved.
 
-- What KAT remembers, why, and how this differs from saved conversation transcripts.
-- User consent, visibility, correction, deletion, retention, backup and export.
-- Provenance, uncertainty, retrieval quality, evaluation and handling of conflicting information.
-- Local storage and model boundaries, privacy, prompt-injection risks and permission enforcement.
-- Migration, resource costs, failure/recovery behavior and a bounded first implementation.
+## Later product direction — deferred
 
-The owner decides whether to proceed, change the design or stop. A proposal's existence does not constitute approval.
-
-## 0.3+: Persistent personal intelligence — gated
-
-Implement only the memory scope approved at the review gate. Define measurable acceptance criteria and validate user control, retrieval behavior, privacy and recovery before expanding it. This direction does not authorize background autonomy, voice, scheduling, browser automation, arbitrary shell execution or connected services; those require separate product decisions.
-
-## Deferred work
-
-Streaming/cancellation, richer session management, additional application registrations and broader permission policies remain candidates for later prioritization. They do not displace the release sequence above or become prerequisites without an explicit scope decision.
+Conversation UX and richer bounded tools, projects/planning, connected services,
+scheduling/proactivity, voice, multimodal/computer control and home integration
+are separate milestones. This roadmap does not authorize arbitrary shell access,
+LAN exposure or autonomous action. Each capability needs its own scope, security
+model and measurable acceptance gate.
