@@ -99,7 +99,7 @@ def test_forget_deletes_current_revisions_fts_and_usage_wording(memories: Memory
             "memory_fts_idx",
         ):
             assert "uniqueprivatemarker" not in repr(
-                db.execute(f"SELECT * FROM {table}").fetchall()
+                [tuple(row) for row in db.execute(f"SELECT * FROM {table}").fetchall()]
             )
     usage = memories.usage(session_id=session.id)
     assert usage[0].forgotten and usage[0].content is None
@@ -167,6 +167,17 @@ def test_retrieval_bounds_and_rebuild(memories: MemoryStore) -> None:
     assert retrieval.retrieve(QUESTION, None) == []
     memories.rebuild()
     assert [r.id for r in retrieval.retrieve(QUESTION, None)] == [r.id for r in results]
+
+
+def test_retrieval_count_limit_and_keywords_late_in_wording(memories):
+    for index in range(10):
+        add(
+            memories,
+            "A descriptive owner statement with many ordinary words about our "
+            f"chosen strategy number {index}. KAT should prefer local models when practical.",
+        )
+    results = MemoryRetrieval(memories).retrieve(QUESTION, None)
+    assert len(results) == 4
 
 
 @pytest.mark.parametrize(
@@ -395,3 +406,73 @@ def test_management_auth_validation_and_forget_notice_contract(client) -> None:
     assert client.get("/settings").json()["memory_enabled"] is True
     assert client.post(f"/memories/{item['id']}/forget").status_code == 200
     assert client.get(f"/memories/{item['id']}/revisions").status_code == 404
+
+
+def test_rejected_secret_is_not_reflected_in_api_or_operational_logs(client, caplog):
+    secret = "Bearer synthetic_private_secret_for_redaction"
+    with caplog.at_level("INFO"):
+        rejected = client.post("/memories", json={"content": secret, "confirmed": True})
+    assert rejected.status_code == 422 and secret not in rejected.text
+    assert secret not in caplog.text
+    assert client.get("/memories").json() == []
+    assert client.post("/memories", json={"content": PREFERENCE, "confirmed": 1}).status_code == 422
+
+
+def test_forget_during_generation_never_resurrects_wording(memories: MemoryStore):
+    record = add(memories)
+    retrieval = MemoryRetrieval(memories)
+    active = retrieval.retrieve(QUESTION, None)
+    memories.forget(record.id)
+    session = memories.store.create_session("Active request")
+    reply = memories.store.add_message(session.id, "assistant", "Already running generation")
+    retrieval.record_usage(active, session.id, reply.id)
+    usage = memories.usage(session_id=session.id)
+    assert usage[0].memory_id == record.id and usage[0].forgotten and usage[0].content is None
+    assert retrieval.retrieve(QUESTION, None) == []
+    with memories.store.transaction() as db:
+        assert db.execute("SELECT count(*) FROM memory_revisions").fetchone()[0] == 0
+
+
+def test_scope_edits_and_cross_scope_supersession_require_new_explicit_record(memories):
+    from kat_core.memory_schemas import ProjectCreate
+
+    project = memories.create_project(ProjectCreate(name="Private project"))
+    private = add(memories, scope="project", project_id=project.id)
+    personal = add(memories)
+    with pytest.raises(MemoryError, match="scope"):
+        memories.edit(private.id, MemoryEdit(content=PREFERENCE, expected_revision=1))
+    with pytest.raises(MemoryError, match="same scope"):
+        memories.supersede(
+            private.id, MemorySupersede(replacement_id=personal.id, expected_revision=1)
+        )
+    assert memories.get(private.id).revision == 1 and memories.get(private.id).status == "confirmed"
+
+
+def test_memory_enabled_local_failure_has_no_cloud_fallback_or_success_usage(
+    config, registry, monkeypatch
+):
+    def offline(request):
+        raise httpx.ConnectError("synthetic backend unavailable", request=request)
+
+    monkeypatch.setattr(
+        OllamaRuntime,
+        "client",
+        lambda self, timeout=60: httpx.AsyncClient(
+            transport=httpx.MockTransport(offline), base_url=self.endpoint, trust_env=False
+        ),
+    )
+    with patch("kat_core.provider.AsyncOpenAI", side_effect=AssertionError("Cloud fallback")):
+        app = create_app(config, registry=registry)
+        with TestClient(
+            app,
+            base_url="http://127.0.0.1",
+            headers={"Authorization": "Bearer " + config.api_token},
+        ) as client:
+            client.put("/settings", json={"provider": "ollama", "memory_enabled": True})
+            client.post("/memories", json={"content": PREFERENCE, "confirmed": True})
+            session = client.post("/sessions", json={}).json()["id"]
+            response = client.post(f"/sessions/{session}/messages", json={"content": QUESTION})
+            assert response.status_code == 503
+            assert response.json()["error"]["code"] == "provider_network"
+            assert client.get(f"/sessions/{session}/memory-usage").json() == []
+            assert len(client.get("/memories").json()) == 1

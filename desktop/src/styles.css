@@ -181,6 +181,11 @@
   color: #f4b7c5 !important;
   border-color: #6b3849 !important;
 }
+.memory-actions .primary-button {
+  background: #ad8bf8;
+  color: #21192b;
+  border-color: #c4a7ff;
+}
 .memory-projects {
   margin-top: 22px;
 }

@@ -89,6 +89,13 @@ class MemoryCreate(MemoryFields):
     source_session_id: str | None = None
     source_message_id: str | None = None
 
+    @field_validator("confirmed", mode="before")
+    @classmethod
+    def explicit_confirmation(cls, value: object) -> object:
+        if value is not True:
+            raise ValueError("Explicit owner confirmation is required")
+        return value
+
     @model_validator(mode="after")
     def validate_source(self) -> "MemoryCreate":
         has_source = self.source_session_id is not None and self.source_message_id is not None

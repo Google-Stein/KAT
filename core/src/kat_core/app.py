@@ -9,6 +9,8 @@ from typing import Annotated, Any
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -131,6 +133,21 @@ def create_app(
     @app.exception_handler(MemoryError)
     async def memory_error(_request: Request, error: MemoryError) -> JSONResponse:
         return JSONResponse(status_code=error.status, content={"detail": str(error)})
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(request: Request, error: RequestValidationError) -> Any:
+        if request.url.path.startswith(("/memories", "/memory/", "/projects")):
+            # Default validation errors echo rejected input, including secrets.
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "detail": (
+                        "Memory fields are invalid. Use normal information, never credentials; "
+                        "review wording, scope, confirmation and timezone-aware dates."
+                    )
+                },
+            )
+        return await request_validation_exception_handler(request, error)
 
     def require_session(session_id: str) -> Session:
         session = store.session(session_id)

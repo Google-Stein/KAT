@@ -180,6 +180,31 @@ async function connect() {
 }
 
 describe('KAT desktop workflow', () => {
+  it('shows exact inserted memory evidence without interpreting its wording as markup', async () => {
+    const original = fetchMock.getMockImplementation()!;
+    const evidence = 'KAT should prefer local models. <img src=x onerror=alert(1)>';
+    fetchMock.mockImplementation(async (input, init) =>
+      input.includes('/memory-usage')
+        ? response([
+            {
+              memory_id: 'reviewed-memory',
+              revision: 2,
+              session_id: firstSession.id,
+              assistant_message_id: savedMessage.id,
+              provider: 'ollama',
+              used_at: timestamp,
+              content: evidence,
+              forgotten: false,
+            },
+          ])
+        : original(input, init),
+    );
+    const user = await connect();
+    await user.click(await screen.findByText('Memories used · 1'));
+    expect(screen.getByText(evidence)).toBeVisible();
+    expect(screen.getByText('Revision 2 · local')).toBeInTheDocument();
+    expect(document.querySelector('.memory-inspector img')).toBeNull();
+  });
   it('Remember reviews a selected message before explicitly saving provenance', async () => {
     const user = await connect();
     await user.click(screen.getByRole('button', { name: 'Remember' }));

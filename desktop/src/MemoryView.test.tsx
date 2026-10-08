@@ -62,6 +62,9 @@ beforeEach(() => {
     } else if (path.endsWith('/status')) {
       saved[0] = { ...saved[0], status: body.status, revision: 2 };
       data = saved[0];
+    } else if (path.endsWith('/supersede')) {
+      saved[0] = { ...saved[0], status: 'superseded', superseded_by: body.replacement_id, revision: 2 };
+      data = saved[0];
     } else throw new Error(`Unhandled memory test route ${path}`);
     return { ok: true, json: async () => data } as Response;
   });
@@ -81,6 +84,32 @@ const show = (enabled = false, onToggle = vi.fn(async () => undefined)) =>
   );
 
 describe('explicit memory workspace', () => {
+  it('pins only by owner action and marks outdated through a revisioned status change', async () => {
+    show();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: `Inspect memory: ${preference}` }));
+    await user.click(screen.getByRole('button', { name: 'Pin' }));
+    await screen.findByRole('button', { name: 'Unpin' });
+    expect(saved[0].pinned).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Mark outdated' }));
+    await waitFor(() => expect(saved[0].status).toBe('expired'));
+    const status = fetchMock.mock.calls.find(([path]) => path.endsWith('/status'));
+    expect(JSON.parse(status![1].body)).toMatchObject({ expected_revision: 2, status: 'expired' });
+  });
+  it('supersedes only after selecting a reviewed replacement', async () => {
+    saved.push({ ...record, id: 'memory-2', content: 'KAT should prefer cloud models when practical.' });
+    show();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: `Inspect memory: ${preference}` }));
+    await user.click(screen.getByText('Supersede with a reviewed replacement'));
+    const replacement = screen.getByLabelText('Replacement memory');
+    await waitFor(() => expect(within(replacement).getAllByRole('option')).toHaveLength(2));
+    expect(screen.getByRole('button', { name: 'Confirm supersession' })).toBeDisabled();
+    await user.selectOptions(replacement, 'memory-2');
+    await user.click(screen.getByRole('button', { name: 'Confirm supersession' }));
+    await waitFor(() => expect(saved[0].superseded_by).toBe('memory-2'));
+    expect(screen.queryByRole('button', { name: 'Confirm supersession' })).not.toBeInTheDocument();
+  });
   it('shows off/privacy state and only toggles on explicit action', async () => {
     const user = userEvent.setup();
     const toggle = vi.fn(async () => undefined);
