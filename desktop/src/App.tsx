@@ -7,6 +7,9 @@ import { ChatView } from './ChatView';
 import { ConnectScreen } from './ConnectScreen';
 import { SettingsView } from './SettingsView';
 import { Sidebar } from './Sidebar';
+import { MemoryView } from './MemoryView';
+import { MemoryEditor } from './MemoryEditor';
+import type { MemoryUsage, Project } from './memory-types';
 import type { View } from './Sidebar';
 import type {
   Approval,
@@ -29,6 +32,10 @@ export default function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [memoryUsage, setMemoryUsage] = useState<MemoryUsage[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [remember, setRemember] = useState<Message | null>(null);
+  const [focusMessage, setFocusMessage] = useState<string | null>(null);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [events, setEvents] = useState<AuditEvent[]>([]);
@@ -110,6 +117,18 @@ export default function App() {
   }, [native, connect]);
 
   useEffect(() => {
+    if (!api) return;
+    const controller = new AbortController();
+    void api
+      .projects(controller.signal)
+      .then(setProjects)
+      .catch((failure: unknown) => {
+        if (!controller.signal.aborted) setError(errorMessage(failure));
+      });
+    return () => controller.abort();
+  }, [api]);
+
+  useEffect(() => {
     if (native && api && view === 'settings' && !credentials && !credentialsStatusError)
       void refreshCredentials();
   }, [native, api, view, credentials, credentialsStatusError, refreshCredentials]);
@@ -121,10 +140,12 @@ export default function App() {
     void Promise.all([
       api.messages(selectedId, controller.signal),
       api.approvals(selectedId, controller.signal),
+      api.sessionMemoryUsage(selectedId, controller.signal),
     ])
-      .then(([savedMessages, savedApprovals]) => {
+      .then(([savedMessages, savedApprovals, usage]) => {
         setMessages(savedMessages);
         setApprovals(savedApprovals);
+        setMemoryUsage(usage);
       })
       .catch((failure: unknown) => {
         if (!controller.signal.aborted) setError(errorMessage(failure));
@@ -157,6 +178,7 @@ export default function App() {
       setMessages([]);
       setApprovals([]);
       setDraft('');
+      setMemoryUsage([]);
     }
     setSelectedId(id);
     setView('chat');
@@ -175,6 +197,7 @@ export default function App() {
       setApprovals([]);
       setDraft('');
       setSelectedId(session.id);
+      setMemoryUsage([]);
       setView('chat');
     } catch (failure) {
       setError(errorMessage(failure));
@@ -325,6 +348,10 @@ export default function App() {
     setSessions([]);
     setSelectedId(null);
     setMessages([]);
+    setMemoryUsage([]);
+    setProjects([]);
+    setRemember(null);
+    setFocusMessage(null);
     setApprovals([]);
     setSettings(null);
     setCredentials(null);
@@ -379,6 +406,20 @@ export default function App() {
         {view === 'chat' && (
           <ChatView
             provider={settings?.provider}
+            memoryUsage={memoryUsage}
+            memoryEnabled={settings?.memory_enabled ?? false}
+            projects={projects}
+            focusMessage={focusMessage}
+            onRemember={setRemember}
+            onProject={(project_id) => {
+              if (!api || !selectedId || busy) return;
+              void api
+                .setSessionProject(selectedId, project_id)
+                .then((updated) =>
+                  setSessions((previous) => previous.map((s) => (s.id === updated.id ? updated : s))),
+                )
+                .catch((failure: unknown) => setError(errorMessage(failure)));
+            }}
             session={sessions.find((session) => session.id === selectedId)}
             messages={messages}
             approvals={approvals}
@@ -412,6 +453,40 @@ export default function App() {
         )}
         {view === 'audit' && (
           <AuditView events={events} loading={auditLoading} onRefresh={() => void refreshAudit()} />
+        )}
+        {view === 'memory' && (
+          <MemoryView
+            api={api}
+            enabled={settings?.memory_enabled ?? false}
+            projects={projects}
+            onToggle={async (enabled) => {
+              await api.setMemoryEnabled(enabled);
+              setSettings((previous) => (previous ? { ...previous, memory_enabled: enabled } : previous));
+            }}
+            onProject={(project) => setProjects((previous) => [...previous, project])}
+            onSource={(sessionId, messageId) => {
+              selectSession(sessionId);
+              setFocusMessage(messageId ?? null);
+            }}
+          />
+        )}
+        {remember && (
+          <MemoryEditor
+            projects={projects}
+            text={remember.content}
+            source
+            projectId={sessions.find((s) => s.id === remember.session_id)?.project_id}
+            onClose={() => setRemember(null)}
+            onSave={async (fields) => {
+              await api.createMemory({
+                ...fields,
+                confirmed: true,
+                origin: 'conversation_selection',
+                source_session_id: remember.session_id,
+                source_message_id: remember.id,
+              });
+            }}
+          />
         )}
       </div>
     </div>

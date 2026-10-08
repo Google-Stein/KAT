@@ -15,6 +15,281 @@
   --accent: #ad8bf8;
   --line: #292733;
 }
+.memory-policy,
+.memory-detail,
+.memory-projects {
+  background: #191820;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px;
+}
+.memory-policy {
+  margin: 20px 0;
+}
+.memory-policy h2 {
+  font-size: 19px;
+  margin-bottom: 8px;
+}
+.memory-policy p,
+.memory-detail p {
+  line-height: 1.6;
+}
+.privacy-note {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 16px 0 0;
+}
+.memory-filters {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 18px 0;
+}
+.memory-filters input,
+.memory-filters select,
+.memory-detail select,
+.chat-memory-bar select,
+.memory-projects input {
+  border: 1px solid var(--line);
+  background: #18171f;
+  color: inherit;
+  padding: 10px;
+  border-radius: 8px;
+  min-width: 0;
+}
+.memory-search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 170px;
+}
+.memory-search input {
+  width: 100%;
+}
+.memory-layout {
+  display: grid;
+  grid-template-columns: minmax(230px, 1fr) minmax(250px, 1.1fr);
+  gap: 20px;
+  align-items: start;
+}
+.memory-item {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #191820;
+  color: inherit;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.memory-item:hover,
+.memory-item.selected {
+  border-color: #7c5aad;
+  background: #211b2d;
+}
+.memory-item small,
+.memory-revision small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.memory-empty {
+  padding: 28px 18px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.memory-empty h2 {
+  font-size: 18px;
+  color: #d8d3e3;
+  margin-top: 16px;
+}
+.memory-detail h2 {
+  margin-top: 14px;
+  font-size: 20px;
+}
+.memory-detail h3 {
+  margin-top: 26px;
+  font-size: 14px;
+}
+.memory-wording {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.memory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.memory-actions button,
+.memory-detail button,
+.memory-projects button {
+  background: #26212f;
+  border: 1px solid #3c324c;
+  color: #dfd4f0;
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+.memory-dates {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 9px 12px;
+  font-size: 11px;
+  color: var(--muted);
+  margin: 22px 0;
+}
+.memory-dates dd {
+  margin: 0;
+}
+.memory-detail details,
+.memory-inspector {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 15px;
+}
+.memory-detail summary,
+.memory-inspector summary,
+.memory-projects summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: #c2a7ec;
+}
+.memory-revision {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.memory-revision small {
+  display: block;
+  margin: 8px 0;
+}
+.forget-panel {
+  margin-top: 28px;
+  border-top: 1px solid #493040;
+  padding-top: 18px;
+  font-size: 12px;
+}
+.danger-button {
+  color: #f4b7c5 !important;
+  border-color: #6b3849 !important;
+}
+.memory-projects {
+  margin-top: 22px;
+}
+.memory-projects form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 15px;
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: #09080dbd;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.memory-editor {
+  width: 570px;
+  max-width: 100%;
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: 26px;
+  background: #1c1924;
+  border: 1px solid #504064;
+  border-radius: 20px;
+  box-shadow: 0 24px 90px #0009;
+}
+.memory-editor header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+}
+.memory-editor header button {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  padding: 8px;
+}
+.memory-editor h2 {
+  margin: 8px 0 12px;
+}
+.memory-editor form label:not(.checkbox-row) {
+  display: block;
+  font-size: 12px;
+  color: #c5bfce;
+  margin: 16px 0 8px;
+}
+.memory-editor textarea,
+.memory-editor select,
+.memory-editor input:not([type='checkbox']) {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #40364e;
+  background: #121018;
+  color: inherit;
+}
+.memory-editor textarea {
+  resize: vertical;
+  line-height: 1.6;
+}
+.memory-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 16px;
+  align-items: center;
+}
+.chat-memory-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 30px 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.chat-memory-bar select {
+  padding: 5px;
+  margin-left: 6px;
+  max-width: 160px;
+}
+.remember-button {
+  background: transparent;
+  color: #ae9bbf;
+  border: 0;
+  font-size: 11px;
+  padding: 8px 0 0;
+}
+.memory-inspector {
+  font-size: 12px;
+}
+.memory-inspector p {
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1050px) {
+  .memory-layout {
+    grid-template-columns: 1fr;
+  }
+  .chat-memory-bar {
+    flex-wrap: wrap;
+    padding-inline: 20px;
+  }
+}
 * {
   box-sizing: border-box;
 }

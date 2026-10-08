@@ -45,6 +45,7 @@ const defaultSettings: Settings = {
   api_key_configured: true,
   application_allowlist: [{ id: 'notepad', label: 'Notepad' }],
   require_approval_for_low_risk: false,
+  memory_enabled: false,
 };
 
 interface MockState {
@@ -82,6 +83,9 @@ beforeEach(() => {
   fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
     const url = new URL(input);
     const method = init?.method ?? 'GET';
+    if (url.pathname === '/projects' || url.pathname.endsWith('/memory-usage')) return response([]);
+    if (url.pathname === '/memories' && method === 'POST')
+      return response({ ...JSON.parse(init?.body as string), id: 'explicit-memory' }, 201);
     if (url.pathname === '/health')
       return response({ status: 'ok', version: '0.1.0', provider_ready: state.ready });
     if (url.pathname === '/providers/probe')
@@ -176,6 +180,35 @@ async function connect() {
 }
 
 describe('KAT desktop workflow', () => {
+  it('Remember reviews a selected message before explicitly saving provenance', async () => {
+    const user = await connect();
+    await user.click(screen.getByRole('button', { name: 'Remember' }));
+    const review = screen.getByRole('dialog');
+    expect(within(review).getByLabelText('Memory wording')).toHaveValue(savedMessage.content);
+    expect(
+      fetchMock.mock.calls.filter(
+        ([, init]) => init?.method === 'POST' && String(init?.body).includes('confirmed'),
+      ),
+    ).toHaveLength(0);
+    await user.click(within(review).getByRole('button', { name: 'Confirm & save memory' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/memories'),
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"source_message_id":"message-1"'),
+      }),
+    );
+    const call = fetchMock.mock.calls.find(
+      ([path, init]) => path.endsWith('/memories') && init?.method === 'POST',
+    );
+    expect(JSON.parse(call![1]!.body as string)).toMatchObject({
+      confirmed: true,
+      origin: 'conversation_selection',
+      source_session_id: 'session-1',
+      content: savedMessage.content,
+    });
+  });
   it('restores persisted history, creates sessions, and sends a text conversation', async () => {
     const user = await connect();
     expect(screen.getByLabelText('KAT version')).toHaveTextContent('0.1.0');

@@ -10,6 +10,15 @@ import type {
   Settings,
   SettingsUpdate,
 } from './types';
+import type {
+  MemoryCreate,
+  MemoryFields,
+  MemoryFilter,
+  MemoryRecord,
+  MemoryStatus,
+  MemoryUsage,
+  Project,
+} from './memory-types';
 
 export class CoreError extends Error {
   constructor(
@@ -166,6 +175,68 @@ export class CoreApi {
   }
   audit(signal?: AbortSignal) {
     return this.request<AuditEvent[]>('/audit?limit=100', 'GET', undefined, signal);
+  }
+  projects(signal?: AbortSignal) {
+    return this.request<Project[]>('/projects', 'GET', undefined, signal);
+  }
+  createProject(name: string) {
+    return this.request<Project>('/projects', 'POST', { name });
+  }
+  setSessionProject(id: string, project_id: string | null) {
+    return this.request<Session>(`/sessions/${encodeURIComponent(id)}/scope`, 'PUT', { project_id });
+  }
+  setMemoryEnabled(enabled: boolean) {
+    return this.request<{ enabled: boolean }>('/memory/settings', 'PUT', { enabled });
+  }
+  memories(filters: MemoryFilter = {}, signal?: AbortSignal) {
+    const query = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') query.set(key, String(value));
+    });
+    return this.request<MemoryRecord[]>(`/memories?${query}`, 'GET', undefined, signal);
+  }
+  createMemory(body: MemoryCreate) {
+    return this.request<MemoryRecord>('/memories', 'POST', body);
+  }
+  editMemory(id: string, body: MemoryFields, expected_revision: number) {
+    return this.request<MemoryRecord>(`/memories/${encodeURIComponent(id)}`, 'PUT', {
+      ...body,
+      expected_revision,
+    });
+  }
+  memoryStatus(id: string, status: Exclude<MemoryStatus, 'superseded'>, expected_revision: number) {
+    return this.request<MemoryRecord>(`/memories/${encodeURIComponent(id)}/status`, 'POST', {
+      status,
+      expected_revision,
+    });
+  }
+  supersedeMemory(id: string, replacement_id: string, expected_revision: number) {
+    return this.request<MemoryRecord>(`/memories/${encodeURIComponent(id)}/supersede`, 'POST', {
+      replacement_id,
+      expected_revision,
+    });
+  }
+  forgetMemory(id: string) {
+    return this.request<{ status: 'forgotten' }>(`/memories/${encodeURIComponent(id)}/forget`, 'POST', {});
+  }
+  memoryRevisions(id: string, signal?: AbortSignal) {
+    return this.request<MemoryRecord[]>(
+      `/memories/${encodeURIComponent(id)}/revisions`,
+      'GET',
+      undefined,
+      signal,
+    );
+  }
+  memoryUsage(id: string, signal?: AbortSignal) {
+    return this.request<MemoryUsage[]>(`/memories/${encodeURIComponent(id)}/usage`, 'GET', undefined, signal);
+  }
+  sessionMemoryUsage(id: string, signal?: AbortSignal) {
+    return this.request<MemoryUsage[]>(
+      `/sessions/${encodeURIComponent(id)}/memory-usage`,
+      'GET',
+      undefined,
+      signal,
+    );
   }
 }
 

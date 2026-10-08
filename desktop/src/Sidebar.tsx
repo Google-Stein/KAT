@@ -1,7 +1,7 @@
-import { Activity, ArrowUpRight, MessageSquare, Plus, Settings2, ShieldCheck } from 'lucide-react';
+import { Activity, ArrowUpRight, BookOpen, MessageSquare, Plus, Settings2, ShieldCheck } from 'lucide-react';
 import type { Session } from './types';
 
-export type View = 'chat' | 'settings' | 'audit';
+export type View = 'chat' | 'settings' | 'audit' | 'memory';
 interface Props {
   version: string;
   sessions: Session[];
@@ -73,6 +73,14 @@ export function Sidebar({
           </div>
         </div>
         <nav className="utility-nav" aria-label="Tools and settings">
+          <button
+            className={view === 'memory' ? 'selected' : ''}
+            onClick={() => onView('memory')}
+            disabled={busy}
+            aria-current={view === 'memory' ? 'page' : undefined}
+          >
+            <BookOpen size={17} /> Memory
+          </button>
           <button
             className={view === 'audit' ? 'selected' : ''}
             onClick={() => onView('audit')}

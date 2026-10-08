@@ -22,6 +22,7 @@ export interface Session {
   title: string;
   created_at: string;
   updated_at: string;
+  project_id?: string | null;
 }
 export interface Message {
   id: string;
@@ -48,10 +49,11 @@ export interface Settings {
   api_key_configured: boolean;
   application_allowlist: { id: string; label: string }[];
   require_approval_for_low_risk: boolean;
+  memory_enabled: boolean;
 }
 export type SettingsUpdate = Pick<
   Settings,
-  'provider' | 'model' | 'require_approval_for_low_risk' | 'local_endpoint'
+  'provider' | 'model' | 'require_approval_for_low_risk' | 'local_endpoint' | 'memory_enabled'
 >;
 export interface AuditEvent {
   id: string;

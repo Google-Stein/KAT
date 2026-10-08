@@ -2,8 +2,15 @@ import { useEffect, useRef } from 'react';
 import { ArrowUp, Clock3, MessageSquare, Sparkles, Terminal, UserRound } from 'lucide-react';
 import { ApprovalCard } from './ApprovalCard';
 import type { Approval, Message, Session, Settings } from './types';
+import type { MemoryUsage, Project } from './memory-types';
 
 interface Props {
+  memoryUsage: MemoryUsage[];
+  memoryEnabled: boolean;
+  projects: Project[];
+  focusMessage: string | null;
+  onRemember: (message: Message) => void;
+  onProject: (id: string | null) => void;
   provider: Settings['provider'] | undefined;
   session: Session | undefined;
   messages: Message[];
@@ -19,6 +26,12 @@ interface Props {
 }
 
 export function ChatView({
+  memoryUsage,
+  memoryEnabled,
+  projects,
+  focusMessage,
+  onRemember,
+  onProject,
   provider,
   session,
   messages,
@@ -41,6 +54,10 @@ export function ChatView({
   useEffect(() => {
     if (!busy) inputRef.current?.focus();
   }, [busy, session?.id]);
+  useEffect(() => {
+    if (focusMessage && !loading)
+      document.getElementById(`message-${focusMessage}`)?.scrollIntoView?.({ block: 'center' });
+  }, [focusMessage, loading, messages]);
   return (
     <main className="chat-view">
       <header className="workspace-header">
@@ -56,6 +73,31 @@ export function ChatView({
               : 'Loading provider…'}
         </span>
       </header>
+      <div className="chat-memory-bar">
+        <label>
+          Conversation scope{' '}
+          <select
+            aria-label="Conversation project scope"
+            value={session?.project_id ?? ''}
+            disabled={busy || !session}
+            onChange={(e) => onProject(e.target.value || null)}
+          >
+            <option value="">Personal</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span>
+          {provider === 'openai'
+            ? 'Memory excluded · cloud uses normal chat history'
+            : memoryEnabled
+              ? 'Local memory on · relevant records only'
+              : 'Memory retrieval off'}
+        </span>
+      </div>
       {!providerReady && (
         <div className="provider-banner">
           <span>Configure a local model or save an OpenAI API key in Settings to start chatting.</span>
@@ -110,6 +152,7 @@ export function ChatView({
           messages.map((message) => (
             <article
               key={message.id}
+              id={`message-${message.id}`}
               className={`message ${message.role}`}
               aria-label={`${message.role} message`}
             >
@@ -135,6 +178,35 @@ export function ChatView({
                   </time>
                 </div>
                 <div className="message-content">{message.content}</div>
+                {message.role !== 'tool' && message.id !== 'sending' && (
+                  <button className="remember-button" disabled={busy} onClick={() => onRemember(message)}>
+                    Remember
+                  </button>
+                )}
+                {message.role === 'assistant' &&
+                  memoryUsage.some((u) => u.assistant_message_id === message.id) && (
+                    <details className="memory-inspector">
+                      <summary>
+                        Memories used ·{' '}
+                        {memoryUsage.filter((u) => u.assistant_message_id === message.id).length}
+                      </summary>
+                      <p className="field-hint">
+                        Inserted as untrusted context, not instructions or permission.
+                      </p>
+                      {memoryUsage
+                        .filter((u) => u.assistant_message_id === message.id)
+                        .map((u) => (
+                          <div key={u.memory_id}>
+                            <small>Revision {u.revision} · local</small>
+                            <p>
+                              {u.forgotten
+                                ? 'This memory was forgotten. Its wording has been removed.'
+                                : u.content}
+                            </p>
+                          </div>
+                        ))}
+                    </details>
+                  )}
               </div>
             </article>
           ))

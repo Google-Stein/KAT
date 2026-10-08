@@ -61,6 +61,7 @@ export function SettingsView({
         model: model.trim(),
         local_endpoint: endpoint,
         require_approval_for_low_risk: false,
+        memory_enabled: settings?.memory_enabled ?? false,
       })
         .then((result) => {
           if (current) setStatus(result);
@@ -76,7 +77,7 @@ export function SettingsView({
       current = false;
       clearTimeout(timeout);
     };
-  }, [provider, model, endpoint, refresh, onProbe]);
+  }, [provider, model, endpoint, refresh, onProbe, settings?.memory_enabled]);
   const [requireApproval, setRequireApproval] = useState(false);
   const savedModel = settings?.model;
   const savedRequireApproval = settings?.require_approval_for_low_risk;
@@ -110,6 +111,7 @@ export function SettingsView({
                 local_endpoint: endpoint,
                 model: model.trim(),
                 require_approval_for_low_risk: requireApproval,
+                memory_enabled: settings.memory_enabled,
               });
             }}
           >
