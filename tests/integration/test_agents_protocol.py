@@ -46,7 +46,7 @@ def response_output(output: list[dict[str, Any]], index: int) -> dict[str, Any]:
             False,
             "failed",
             "tool_rejected",
-            503,
+            502,
         ),
     ],
 )

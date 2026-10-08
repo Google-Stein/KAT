@@ -5,6 +5,7 @@ import json
 import logging
 from typing import Any
 
+from kat_core.errors import ProviderErrorCode, ProviderFailure
 from kat_core.permissions import PermissionPolicy
 from kat_core.provider import ModelRuntime, ProviderUnavailableError
 from kat_core.schemas import Approval, ChatResponse
@@ -32,10 +33,7 @@ class ChatService:
 
     async def chat(self, session_id: str, content: str) -> ChatResponse:
         if not self.runtime.ready:
-            raise ProviderUnavailableError(
-                "Configure KAT_OPENAI_API_KEY (or OPENAI_API_KEY) securely "
-                "and restart KAT Core to enable conversations."
-            )
+            raise ProviderUnavailableError()
         lock = self.lock(session_id)
         if lock.locked():
             raise SessionBusyError("This conversation already has a request in progress")
@@ -109,28 +107,26 @@ class ChatService:
                     text = await self.runtime.respond(
                         self.store.messages(session_id), settings, self.registry, dispatch
                     )
-            except TimeoutError:
-                self.store.add_audit(
-                    "provider_error", session_id=session_id, error="Model request timed out"
-                )
-                raise
             except Exception as error:
-                # Provider exceptions may include headers, keys, or message bodies.
+                failure = (
+                    error
+                    if isinstance(error, ProviderFailure)
+                    else ProviderFailure(
+                        ProviderErrorCode.TIMEOUT
+                        if isinstance(error, TimeoutError)
+                        else ProviderErrorCode.FAILED
+                    )
+                )
                 logger.warning(
-                    "model_request_failed session_id=%s exception_type=%s",
-                    session_id,
-                    type(error).__name__,
+                    "model_request_failed session_id=%s category=%s", session_id, failure.code.value
                 )
                 self.store.add_audit(
                     "provider_error",
                     session_id=session_id,
-                    error="Model provider request failed",
-                    details={"exception_type": type(error).__name__},
+                    error=str(failure),
+                    details={"code": failure.code.value, "provider": settings.provider},
                 )
-                raise ProviderUnavailableError(
-                    "The model request failed. Check API credentials, model access, "
-                    "network, and quota."
-                ) from None
+                raise failure from None
             assistant = self.store.add_message(session_id, "assistant", text)
             approvals = [self.store.approval(approval_id) for approval_id in created_approvals]
             return ChatResponse(

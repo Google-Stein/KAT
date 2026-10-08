@@ -15,7 +15,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from kat_core import __version__
 from kat_core.config import CoreConfig
-from kat_core.provider import ModelRuntime, OpenAIAgentsRuntime, ProviderUnavailableError
+from kat_core.errors import ProviderFailure
+from kat_core.provider import ModelRuntime, OpenAIAgentsRuntime
 from kat_core.schemas import (
     Approval,
     ApprovalDecision,
@@ -158,7 +159,7 @@ def create_app(
         return store.messages(session_id)
 
     @app.post("/sessions/{session_id}/messages", response_model=ChatResponse)
-    async def chat(session_id: str, body: MessageCreate) -> ChatResponse:
+    async def chat(session_id: str, body: MessageCreate) -> ChatResponse | JSONResponse:
         require_session(session_id)
         if not body.content.strip():
             raise HTTPException(status_code=422, detail="Message cannot be blank")
@@ -166,12 +167,14 @@ def create_app(
             return await service.chat(session_id, body.content)
         except SessionBusyError as error:
             raise HTTPException(status_code=409, detail=str(error)) from None
-        except ProviderUnavailableError as error:
-            raise HTTPException(status_code=503, detail=str(error)) from None
-        except TimeoutError:
-            raise HTTPException(
-                status_code=504, detail="Model request timed out; please retry"
-            ) from None
+        except ProviderFailure as error:
+            return JSONResponse(
+                status_code=error.status_code,
+                content={
+                    "error": {"code": error.code.value, "message": str(error)},
+                    "detail": str(error),
+                },
+            )
 
     @app.get("/approvals", response_model=list[Approval])
     def approvals(session_id: str | None = None) -> list[Approval]:
