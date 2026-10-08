@@ -60,6 +60,16 @@ def acquire_data_lock(data_dir: Path) -> IO[bytes]:
     return lock_file
 
 
+class ProviderLogFilter(logging.Filter):
+    """SDK diagnostics can contain raw bodies even at warning/error level."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not any(
+            record.name == prefix or record.name.startswith(prefix + ".")
+            for prefix in ("openai", "agents", "httpx", "httpcore")
+        )
+
+
 def configure_logging(data_dir: Path) -> None:
     logs = data_dir / "logs"
     logs.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -71,6 +81,7 @@ def configure_logging(data_dir: Path) -> None:
     stream_handler = logging.StreamHandler()
     for handler in (file_handler, stream_handler):
         handler.setFormatter(formatter)
+        handler.addFilter(ProviderLogFilter())
     logging.basicConfig(level=logging.INFO, handlers=[file_handler, stream_handler], force=True)
     # HTTP libraries may emit request URLs; keep routine provider network metadata out of logs.
     for name in ("openai", "httpx", "httpcore", "openai.agents"):

@@ -168,3 +168,53 @@ async def test_actual_agents_tool_round_trip_preserves_local_security_policy(
                 assert "provider_error" in {event["event"] for event in audit}
     finally:
         app.state.store.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status,provider_code,expected",
+    [
+        (401, "invalid_api_key", "provider_authentication"),
+        (403, "model_access_denied", "provider_model_unavailable"),
+        (404, "model_not_found", "provider_model_unavailable"),
+        (400, "model_not_found", "provider_model_unavailable"),
+        (429, "insufficient_quota", "provider_quota"),
+        (429, "rate_limit_exceeded", "provider_rate_limited"),
+        (500, "server_error", "provider_failed"),
+    ],
+)
+async def test_actual_sdk_http_errors_are_classified_without_payload_leaks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    status: int,
+    provider_code: str,
+    expected: str,
+) -> None:
+    private = "private-api-key-and-conversation-payload"
+
+    def endpoint(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status, json={"error": {"code": provider_code, "message": private}})
+
+    def make_client(**kwargs: Any) -> OpenAIClient:
+        kwargs["max_retries"] = 0
+        return OpenAIClient(
+            **kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(endpoint))
+        )
+
+    monkeypatch.setattr("kat_core.provider.AsyncOpenAI", make_client)
+    app = create_app(CoreConfig(data_dir=tmp_path, api_token=TOKEN, openai_api_key=private))
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://127.0.0.1",
+            headers={"Authorization": f"Bearer {TOKEN}"},
+        ) as client:
+            session = (await client.post("/sessions", json={})).json()["id"]
+            response = await client.post(f"/sessions/{session}/messages", json={"content": private})
+            audit = await client.get("/audit")
+            assert response.json()["error"]["code"] == expected
+            assert audit.json()[0]["details"]["code"] == expected
+            assert private not in response.text + audit.text + caplog.text
+    finally:
+        app.state.store.close()

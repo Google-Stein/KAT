@@ -59,10 +59,12 @@ def main() -> None:
             "This synthetic credential and CDP test requires a disposable Windows CI account."
         )
     import win32cred
+    import win32gui
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--executable", type=Path, required=True)
     parser.add_argument("--model", default="qwen3:1.7b")
+    parser.add_argument("--startup-only", action="store_true")
     args = parser.parse_args()
     try:
         win32cred.CredRead(TARGET, win32cred.CRED_TYPE_GENERIC)
@@ -79,6 +81,8 @@ def main() -> None:
         "--remote-debugging-port=9527 --remote-debugging-address=127.0.0.1"
     )
     process = None
+    page = None
+    notepad_window = None
     stage = "installed-startup"
     try:
         with sync_playwright() as playwright:
@@ -101,11 +105,21 @@ def main() -> None:
                                 page.get_by_role("button", name="Settings", exact=True)
                             ).to_be_visible()
                             return page
-                    except Exception:
+                    except Exception as error:
+                        # CDP connection errors contain local debugging URLs, not Core tokens.
+                        # Limit output to the first line and omit socket identifiers.
+                        message = str(error).splitlines()[0].split("ws://")[0][:220]
+                        print(f"CDP attach retry: {type(error).__name__}: {message}", flush=True)
                         time.sleep(0.3)
                 raise RuntimeError("Installed WebView debugging session unavailable")
 
             page = launch()
+            if args.startup_only:
+                print("PASS: existing installed WebView attaches and renders Settings.")
+                assert process is not None
+                close_normally(process)
+                process = None
+                return
             stage = "native-credential-dialog"
             page.get_by_role("button", name="Settings", exact=True).click()
             page.get_by_role("button", name="Set API key", exact=True).click()
@@ -190,6 +204,8 @@ def main() -> None:
             )
 
             stage = "notepad-approval"
+            previous_windows = set()
+            win32gui.EnumWindows(lambda hwnd, _: previous_windows.add(hwnd), None)
             # Send becomes disabled while an approval is pending; wait for the card instead.
             page.get_by_placeholder("Message KAT…").fill("Open Notepad.")
             page.get_by_role("button", name="Send message", exact=True).click()
@@ -209,6 +225,21 @@ def main() -> None:
             )
             outcome = next(item for item in api(page, "/approvals") if item["id"] == request["id"])
             assert outcome["status"] == "completed"
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline and not notepad_window:
+
+                def find_notepad(hwnd, _):
+                    nonlocal notepad_window
+                    if (
+                        hwnd not in previous_windows
+                        and win32gui.IsWindowVisible(hwnd)
+                        and win32gui.GetClassName(hwnd) == "Notepad"
+                    ):
+                        notepad_window = hwnd
+
+                win32gui.EnumWindows(find_notepad, None)
+                time.sleep(0.1)
+            assert notepad_window, "Approved Notepad did not create a real window"
             print(
                 "PASS: installed local model requests Notepad; owner UI approval runs "
                 "the audited native tool."
@@ -219,6 +250,10 @@ def main() -> None:
             assert process is not None
             close_normally(process)
             process = None
+            assert win32gui.IsWindow(notepad_window), "Approved Notepad was killed on KAT close"
+            win32gui.PostMessage(notepad_window, 0x0010, 0, 0)
+            notepad_window = None
+            print("PASS: approved Notepad window survives normal KAT close.")
             page = launch()
             settings = api(page, "/settings")
             assert settings["provider"] == "ollama" and settings["model"] == args.model
@@ -235,8 +270,19 @@ def main() -> None:
     except Exception as error:
         # Avoid CDP tracebacks/request dumps, which can expose memory-only connection tokens.
         print(f"FAIL: installed UI stage={stage} exception_type={type(error).__name__}")
+        if page is not None:
+            with suppress(Exception):
+                diagnostics = Path(__file__).resolve().parent.parent / ".local/windows-smoke"
+                diagnostics.mkdir(parents=True, exist_ok=True)
+                page.screenshot(path=str(diagnostics / "installed-ui-failure.png"))
+                for selector in (".provider-status", ".workspace-error", ".credential-actions"):
+                    if page.locator(selector).count():
+                        print("UI status:", page.locator(selector).first.inner_text())
         raise SystemExit(1) from None
     finally:
+        if notepad_window:
+            with suppress(Exception):
+                win32gui.PostMessage(notepad_window, 0x0010, 0, 0)
         if process and process.poll() is None:
             process.kill()
             process.wait(timeout=15)

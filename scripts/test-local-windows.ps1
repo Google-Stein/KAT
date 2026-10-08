@@ -40,6 +40,14 @@ try {
 } catch {
   # Backend error logs contain server diagnostics; no chat bodies are logged at INFO.
   if (Test-Path (Join-Path $root 'server.stderr.log')) { Get-Content (Join-Path $root 'server.stderr.log') -Tail 60 }
+  $logs = Join-Path $env:LOCALAPPDATA 'com.kat.assistant/logs'
+  if (Test-Path $logs) {
+    foreach ($file in Get-ChildItem $logs -Filter '*.log') {
+      $safe = ((Get-Content $file.FullName -Tail 80) -join "`n") -replace '(?i)Bearer\s+\S+', 'Bearer [REDACTED]' -replace '\bsk-[A-Za-z0-9_-]+', '[REDACTED]'
+      Write-Output "KAT $($file.Name):"
+      Write-Output $safe
+    }
+  }
   throw
 } finally {
   if ($server -and -not $server.HasExited) { & taskkill.exe /PID $server.Id /T /F | Out-Null }

@@ -96,12 +96,14 @@ def main() -> None:
                         "and audit."
                     )
                     # This disposable test closes only the PID returned by its own approved tool.
-                    import ctypes
+                    from contextlib import suppress
 
-                    handle = ctypes.windll.kernel32.OpenProcess(1, False, approved["result"]["pid"])
-                    if handle:
-                        ctypes.windll.kernel32.TerminateProcess(handle, 0)
-                        ctypes.windll.kernel32.CloseHandle(handle)
+                    import win32api
+
+                    with suppress(Exception):
+                        handle = win32api.OpenProcess(1, False, approved["result"]["pid"])
+                        win32api.TerminateProcess(handle, 0)
+                        win32api.CloseHandle(handle)
                 else:
                     assert approved["status"] == "denied"
                     print(
