@@ -52,7 +52,7 @@ export function ChatView({
       </header>
       {!providerReady && (
         <div className="provider-banner">
-          <span>Add your OpenAI API key to the Core environment to start chatting.</span>
+          <span>Configure a local model or save an OpenAI API key in Settings to start chatting.</span>
           <button onClick={onSettings}>View settings</button>
         </div>
       )}

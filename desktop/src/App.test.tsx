@@ -40,6 +40,7 @@ const pendingApproval: Approval = {
 };
 const defaultSettings: Settings = {
   provider: 'openai',
+  local_endpoint: 'http://127.0.0.1:11434',
   model: 'gpt-4.1-mini',
   api_key_configured: true,
   application_allowlist: [{ id: 'notepad', label: 'Notepad' }],
@@ -83,6 +84,15 @@ beforeEach(() => {
     const method = init?.method ?? 'GET';
     if (url.pathname === '/health')
       return response({ status: 'ok', version: '0.1.0', provider_ready: state.ready });
+    if (url.pathname === '/providers/probe')
+      return response({
+        provider: state.settings.provider,
+        status: 'configured',
+        message: 'Provider configured.',
+        models: [],
+        tool_calling: true,
+        error_code: null,
+      });
     if (url.pathname === '/settings' && method === 'GET') return response(state.settings);
     if (url.pathname === '/settings' && method === 'PUT') {
       state.settings = { ...state.settings, ...JSON.parse(init?.body as string) };
@@ -520,5 +530,22 @@ describe('Windows provider credential controls', () => {
     expect(screen.queryByRole('button', { name: 'Set API key' })).not.toBeInTheDocument();
     expect(invoke).not.toHaveBeenCalled();
     expect(screen.queryByLabelText(/API key/)).not.toBeInTheDocument();
+  });
+});
+
+describe('Local provider selection', () => {
+  it('saves local routing and endpoint without asking for a cloud key', async () => {
+    state.settings.api_key_configured = false;
+    const user = await connect();
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.selectOptions(screen.getByLabelText('Provider'), 'ollama');
+    expect(screen.queryByRole('button', { name: 'Set API key' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Model')).toHaveValue('qwen3:8b');
+    expect(screen.getByLabelText('Local backend address')).toHaveValue('http://127.0.0.1:11434');
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+    await screen.findByText('Settings saved');
+    expect(state.settings.provider).toBe('ollama');
+    expect(state.settings.local_endpoint).toBe('http://127.0.0.1:11434');
+    expect(screen.getByText(/inference stay on this computer/)).toBeInTheDocument();
   });
 });

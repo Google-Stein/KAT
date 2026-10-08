@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Save, ShieldCheck } from 'lucide-react';
 import { ProviderCredentialsView } from './ProviderCredentialsView';
-import type { ProviderCredentialsStatus, Settings, SettingsUpdate } from './types';
+import type { ProviderCredentialsStatus, ProviderStatus, Settings, SettingsUpdate } from './types';
 
 interface Props {
   settings: Settings | null;
   saving: boolean;
   saved: boolean;
   onSave: (settings: SettingsUpdate) => void;
+  onProbe: (settings: SettingsUpdate) => Promise<ProviderStatus>;
   native: boolean;
   credentials: ProviderCredentialsStatus | null;
   credentialsLoading: boolean;
@@ -24,6 +25,7 @@ export function SettingsView({
   saving,
   saved,
   onSave,
+  onProbe,
   native,
   credentials,
   credentialsLoading,
@@ -35,6 +37,46 @@ export function SettingsView({
   onRemoveCredentials,
 }: Props) {
   const [model, setModel] = useState('');
+  const [provider, setProvider] = useState<Settings['provider']>('openai');
+  const [endpoint, setEndpoint] = useState('http://127.0.0.1:11434');
+  const [status, setStatus] = useState<ProviderStatus | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [probeError, setProbeError] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    if (settings) {
+      setProvider(settings.provider);
+      setEndpoint(settings.local_endpoint);
+    }
+  }, [settings]);
+  useEffect(() => {
+    if (!model.trim() || !endpoint.trim()) return;
+    let current = true;
+    setStatus(null);
+    setProbeError(false);
+    setChecking(true);
+    const timeout = setTimeout(() => {
+      void onProbe({
+        provider,
+        model: model.trim(),
+        local_endpoint: endpoint,
+        require_approval_for_low_risk: false,
+      })
+        .then((result) => {
+          if (current) setStatus(result);
+        })
+        .catch(() => {
+          if (current) setProbeError(true);
+        })
+        .finally(() => {
+          if (current) setChecking(false);
+        });
+    }, 400);
+    return () => {
+      current = false;
+      clearTimeout(timeout);
+    };
+  }, [provider, model, endpoint, refresh, onProbe]);
   const [requireApproval, setRequireApproval] = useState(false);
   const savedModel = settings?.model;
   const savedRequireApproval = settings?.require_approval_for_low_risk;
@@ -64,7 +106,8 @@ export function SettingsView({
             onSubmit={(event) => {
               event.preventDefault();
               onSave({
-                provider: 'openai',
+                provider,
+                local_endpoint: endpoint,
                 model: model.trim(),
                 require_approval_for_low_risk: requireApproval,
               });
@@ -79,15 +122,47 @@ export function SettingsView({
                 <span className="section-number">01</span>
               </div>
               <label htmlFor="provider">Provider</label>
-              <select id="provider" value="openai" disabled>
-                <option value="openai">OpenAI</option>
+              <select
+                id="provider"
+                value={provider}
+                disabled={saving}
+                onChange={(event) => {
+                  const next = event.target.value as Settings['provider'];
+                  setProvider(next);
+                  setModel(
+                    next === settings.provider
+                      ? settings.model
+                      : next === 'ollama'
+                        ? 'qwen3:8b'
+                        : 'gpt-4.1-mini',
+                  );
+                }}
+              >
+                <option value="openai">OpenAI · cloud</option>
+                <option value="ollama">Local · Ollama</option>
               </select>
               <p className="field-hint">
-                Additional providers can be added through the Core adapter interface.
+                Provider selection is explicit. Local failures never fall back to cloud.
               </p>
+              {provider === 'ollama' && (
+                <>
+                  <label htmlFor="local-endpoint">Local backend address</label>
+                  <input
+                    id="local-endpoint"
+                    value={endpoint}
+                    onChange={(event) => setEndpoint(event.target.value)}
+                    required
+                    disabled={saving}
+                  />
+                  <p className="field-hint">
+                    Install and run Ollama on this computer. Only loopback addresses are accepted.
+                  </p>
+                </>
+              )}
               <label htmlFor="model">Model</label>
               <input
                 id="model"
+                list="available-models"
                 value={model}
                 onChange={(event) => setModel(event.target.value)}
                 placeholder="gpt-4.1-mini"
@@ -96,21 +171,55 @@ export function SettingsView({
                 pattern={'[A-Za-z0-9][A-Za-z0-9._:\\-]{0,119}'}
                 disabled={saving}
               />
-              <p className="field-hint">Use a model available to your OpenAI account.</p>
-              <ProviderCredentialsView
-                configured={settings.api_key_configured}
-                native={native}
-                status={credentials}
-                loading={credentialsLoading}
-                busy={saving}
-                notice={credentialsNotice}
-                statusError={credentialsStatusError}
-                onRefresh={onRefreshCredentials}
-                onConfigure={onConfigureCredentials}
-                onRemove={onRemoveCredentials}
-              />
+              <datalist id="available-models">
+                {status?.models.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+              <p className="field-hint">
+                {provider === 'ollama'
+                  ? 'Choose an installed model. Recommended for 24 GB VRAM: qwen3:8b (about 5 GB download, installed separately through Ollama).'
+                  : 'Use a model available to your OpenAI account.'}
+              </p>
+              <div className="provider-status" role="status">
+                {checking
+                  ? 'Checking provider…'
+                  : probeError
+                    ? 'Could not check provider. Verify the address and Core connection.'
+                    : status?.message}
+                {provider === 'ollama' && status?.status === 'ready' && !status.tool_calling && (
+                  <p>
+                    This model cannot use KAT tools. Choose a tool-capable model for time and application
+                    requests.
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setRefresh((value) => value + 1)}
+                disabled={saving || checking}
+              >
+                Refresh provider status
+              </button>
+              {provider === 'openai' && (
+                <ProviderCredentialsView
+                  configured={settings.api_key_configured}
+                  native={native}
+                  status={credentials}
+                  loading={credentialsLoading}
+                  busy={saving}
+                  notice={credentialsNotice}
+                  statusError={credentialsStatusError}
+                  onRefresh={onRefreshCredentials}
+                  onConfigure={onConfigureCredentials}
+                  onRemove={onRemoveCredentials}
+                />
+              )}
               <p className="data-note">
-                History is stored on this device. Conversation context is sent to OpenAI.
+                {provider === 'ollama'
+                  ? 'History and inference stay on this computer. KAT does not download models or send these conversations to OpenAI.'
+                  : 'History is stored on this device. Conversation context and tool descriptions are sent to OpenAI when you chat.'}
               </p>
             </section>
             <section className="settings-card">

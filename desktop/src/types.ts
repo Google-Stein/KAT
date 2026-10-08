@@ -42,13 +42,17 @@ export interface Approval {
   error?: string | null;
 }
 export interface Settings {
-  provider: 'openai';
+  provider: 'openai' | 'ollama';
+  local_endpoint: string;
   model: string;
   api_key_configured: boolean;
   application_allowlist: { id: string; label: string }[];
   require_approval_for_low_risk: boolean;
 }
-export type SettingsUpdate = Pick<Settings, 'provider' | 'model' | 'require_approval_for_low_risk'>;
+export type SettingsUpdate = Pick<
+  Settings,
+  'provider' | 'model' | 'require_approval_for_low_risk' | 'local_endpoint'
+>;
 export interface AuditEvent {
   id: string;
   timestamp: string;
@@ -63,4 +67,13 @@ export interface ChatResponse {
   user_message: Message;
   assistant_message: Message;
   approvals: Approval[];
+}
+
+export interface ProviderStatus {
+  provider: 'openai' | 'ollama';
+  status: 'ready' | 'configured' | 'not_configured' | 'model_missing' | 'unreachable' | 'error';
+  message: string;
+  models: string[];
+  tool_calling: boolean;
+  error_code: string | null;
 }

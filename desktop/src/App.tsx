@@ -252,6 +252,14 @@ export default function App() {
     }
   }
 
+  const probeProvider = useCallback(
+    (update: SettingsUpdate) => {
+      if (!api) return Promise.reject(new Error('Core is disconnected.'));
+      return api.probeProvider(update);
+    },
+    [api],
+  );
+
   async function saveSettings(update: SettingsUpdate) {
     if (!api || actionRef.current) return;
     actionRef.current = true;
@@ -388,6 +396,7 @@ export default function App() {
             saving={busy}
             saved={settingsSaved}
             onSave={(update) => void saveSettings(update)}
+            onProbe={probeProvider}
             native={native}
             credentials={credentials}
             credentialsLoading={credentialsLoading}

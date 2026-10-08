@@ -5,6 +5,7 @@ import type {
   CoreConnection,
   Health,
   Message,
+  ProviderStatus,
   Session,
   Settings,
   SettingsUpdate,
@@ -159,6 +160,9 @@ export class CoreApi {
   }
   updateSettings(settings: SettingsUpdate) {
     return this.request<Settings>('/settings', 'PUT', settings);
+  }
+  probeProvider(settings: SettingsUpdate) {
+    return this.request<ProviderStatus>('/providers/probe', 'POST', settings);
   }
   audit(signal?: AbortSignal) {
     return this.request<AuditEvent[]>('/audit?limit=100', 'GET', undefined, signal);
