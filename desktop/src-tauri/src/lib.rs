@@ -3,6 +3,8 @@
 use serde::Serialize;
 #[cfg(target_os = "linux")]
 mod linux_guardian;
+#[cfg(windows)]
+mod windows_job;
 use std::{
     fs::{self, OpenOptions},
     io::Write,
@@ -12,6 +14,8 @@ use std::{
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+#[cfg(windows)]
+use windows_job::WindowsJob;
 
 pub const CORE_PORT: u16 = 42800;
 pub const CORE_BASE_URL: &str = "http://127.0.0.1:42800";
@@ -157,14 +161,11 @@ impl CoreProcess {
             .stdin(Stdio::null())
             .stdout(Stdio::from(stdout))
             .stderr(Stdio::from(stderr));
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-        }
         #[cfg(target_os = "linux")]
         let spawned = linux_guardian::spawn(command);
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(windows)]
+        let spawned = windows_job::spawn(command);
+        #[cfg(not(any(target_os = "linux", windows)))]
         let spawned = command.spawn();
         let spawned = spawned.map_err(|error| {
             format!(
@@ -174,23 +175,15 @@ impl CoreProcess {
         })?;
         #[cfg(target_os = "linux")]
         let (child, guardian) = spawned;
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(windows)]
+        let (child, job) = spawned;
+        #[cfg(not(any(target_os = "linux", windows)))]
         let child = spawned;
         log_event(
             data_dir,
             "core_spawned",
             &format!("core_pid={}", child.id()),
         );
-        #[cfg(windows)]
-        let job = match WindowsJob::attach(&child) {
-            Ok(job) => job,
-            Err(error) => {
-                let mut child = child;
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(error);
-            }
-        };
         let mut process = Self {
             child,
             connection: CoreConnection {
@@ -226,63 +219,6 @@ impl CoreProcess {
                 "KAT Core exited ({status}). Restart Core or inspect the local logs."
             )),
             Err(error) => Err(format!("Cannot inspect KAT Core process: {error}")),
-        }
-    }
-}
-
-/// A Windows kernel handle closes automatically even after an abrupt desktop exit.
-/// Only Core belongs to this job: applications launched by tools break away silently.
-#[cfg(windows)]
-struct WindowsJob(windows_sys::Win32::Foundation::HANDLE);
-
-#[cfg(windows)]
-unsafe impl Send for WindowsJob {}
-
-#[cfg(windows)]
-impl WindowsJob {
-    fn attach(child: &Child) -> Result<Self, String> {
-        use std::os::windows::io::AsRawHandle;
-        use windows_sys::Win32::System::JobObjects::{
-            AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-            SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK,
-        };
-        // Handles are owned by this guard; all pointers reference initialized memory.
-        unsafe {
-            let handle = CreateJobObjectW(std::ptr::null(), std::ptr::null());
-            if handle.is_null() {
-                return Err(format!(
-                    "Cannot create KAT Core lifetime guard: {}",
-                    std::io::Error::last_os_error()
-                ));
-            }
-            let job = Self(handle);
-            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
-            info.BasicLimitInformation.LimitFlags =
-                JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK;
-            if SetInformationJobObject(
-                handle,
-                JobObjectExtendedLimitInformation,
-                &info as *const _ as *const std::ffi::c_void,
-                std::mem::size_of_val(&info) as u32,
-            ) == 0
-                || AssignProcessToJobObject(handle, child.as_raw_handle()) == 0
-            {
-                return Err(format!(
-                    "Cannot guard KAT Core lifetime: {}",
-                    std::io::Error::last_os_error()
-                ));
-            }
-            Ok(job)
-        }
-    }
-}
-
-#[cfg(windows)]
-impl Drop for WindowsJob {
-    fn drop(&mut self) {
-        unsafe {
-            windows_sys::Win32::Foundation::CloseHandle(self.0);
         }
     }
 }
@@ -575,10 +511,18 @@ mod tests {
             "native credential must remain ephemeral"
         );
         drop(process);
-        assert!(
-            ensure_port_available(CORE_PORT).is_ok(),
-            "owned Core must release its listening port"
-        );
+        // Windows Job Object descendant termination is asynchronous after its
+        // handle closes. Observe release, rather than assuming it is immediate.
+        let deadline = Instant::now() + Duration::from_secs(3);
+        loop {
+            match ensure_port_available(CORE_PORT) {
+                Ok(()) => break,
+                Err(error) if Instant::now() >= deadline => {
+                    panic!("owned Core must release its listening port: {error}")
+                }
+                Err(_) => thread::sleep(Duration::from_millis(20)),
+            }
+        }
         fs::remove_dir_all(data_dir).unwrap();
     }
 }

@@ -38,8 +38,8 @@ function Wait-KatReady($process) {
     if ($script:children.Count -gt 1) { Fail-Kat "process-topology" "Multiple direct Core children of desktop $($process.Id)." }
     $failure = @($evidence | Where-Object { $_ -match 'stage=core_failed ' })
     if ($failure.Count -gt 0) {
-      $category = if ($failure[-1] -match 'port|127\.0\.0\.1:42800') { "port-lifecycle" }
-        elseif ($failure[-1] -match 'credential|become ready|health check') { "authenticated-readiness" }
+      $category = if ($failure[-1] -match 'credential|become ready|health check') { "authenticated-readiness" }
+        elseif ($failure[-1] -match 'port|127\.0\.0\.1:42800') { "port-lifecycle" }
         else { "core-child-startup" }
       Fail-Kat $category $failure[-1]
     }
@@ -59,7 +59,9 @@ function Wait-KatReady($process) {
       }
       # Native readiness is an actual bearer-authenticated HTTP check. Also assert
       # independently that the same owned service rejects an unauthenticated caller.
-      $client = [System.Net.Http.HttpClient]::new()
+      $handler = [System.Net.Http.HttpClientHandler]::new()
+      $handler.UseProxy = $false
+      $client = [System.Net.Http.HttpClient]::new($handler)
       $client.Timeout = [TimeSpan]::FromSeconds(3)
       try {
         $response = $client.GetAsync("http://127.0.0.1:42800/health").GetAwaiter().GetResult()
