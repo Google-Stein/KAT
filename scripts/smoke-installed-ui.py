@@ -200,15 +200,34 @@ def main() -> None:
             ]
         )[0]["id"]
 
+        def composer() -> Any:
+            textarea = window.child_window(title="Message KAT", control_type="Edit")
+            textarea.wait("visible enabled", timeout=20)
+            return textarea
+
         def send(text: str) -> None:
-            textarea = window.descendants(control_type="Edit")[0]
+            previous_answers = len(
+                rows(
+                    "SELECT id FROM messages WHERE session_id=? AND role='assistant'", (session_id,)
+                )
+            )
+            textarea = composer()
             textarea.set_focus()
             textarea.type_keys(text, with_spaces=True)
             button("Send message").click_input()
+            # Send stays disabled after success because the draft is empty.
+            # Wait for the actual stored reply and re-enabled composer instead.
             wait_for(
-                lambda: window.child_window(
-                    title="Send message", control_type="Button"
-                ).is_enabled(),
+                lambda: (
+                    len(
+                        rows(
+                            "SELECT id FROM messages WHERE session_id=? AND role='assistant'",
+                            (session_id,),
+                        )
+                    )
+                    > previous_answers
+                    and textarea.is_enabled()
+                ),
                 180,
             )
 
@@ -233,7 +252,7 @@ def main() -> None:
         stage = "notepad-approval"
         previous_windows = set()
         win32gui.EnumWindows(lambda hwnd, _: previous_windows.add(hwnd), None)
-        textarea = window.descendants(control_type="Edit")[0]
+        textarea = composer()
         textarea.set_focus()
         textarea.type_keys("Open Notepad.", with_spaces=True)
         button("Send message").click_input()
