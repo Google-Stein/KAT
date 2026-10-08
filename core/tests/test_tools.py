@@ -114,7 +114,6 @@ def test_launch_uses_only_fixed_argv_without_shell_or_core_secrets(
     options = process.call_args.kwargs
     assert options["shell"] is False
     assert options["close_fds"] is True
-    assert options["creationflags"] == (0x01000000 if os.name == "nt" else 0)
     assert options["cwd"] == str(Path(application.executable).parent)
     assert "OPENAI_API_KEY" not in options["env"]
     assert "KAT_CORE_TOKEN" not in options["env"]

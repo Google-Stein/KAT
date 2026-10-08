@@ -1,54 +1,10 @@
-name: KAT checks
+name: Original Windows startup reproduction
 on:
   push:
-  pull_request:
+    branches: [investigation/windows-startup]
 permissions:
   contents: read
 jobs:
-  core:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version-file: .python-version
-      - name: Install uv and locked dependencies
-        run: |
-          python -m pip install uv
-          uv sync --project core --python "$(command -v python)" --frozen --group dev
-      - name: Test, lint, format, and type check
-        working-directory: core
-        run: |
-          uv run pytest tests ../tests/integration
-          uv run ruff check .
-          uv run ruff format --check .
-          uv run mypy
-      - name: Real Core process smoke check
-        run: python scripts/smoke-core.py
-  desktop:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
-      - name: Install and check UI
-        working-directory: desktop
-        run: |
-          npm ci
-          npm test
-          npm run lint
-          npm run format:check
-          npm run typecheck
-          npm run build
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Native lifecycle tests
-        working-directory: desktop
-        run: |
-          cargo test --locked --manifest-path src-tauri/Cargo.toml --no-default-features
-          cargo fmt --manifest-path src-tauri/Cargo.toml --check
   windows:
     runs-on: windows-latest
     steps:
@@ -56,30 +12,26 @@ jobs:
       - uses: actions/setup-python@v5
         id: python
         with:
-          python-version-file: .python-version
+          python-version: '3.14.7'
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
       - uses: dtolnay/rust-toolchain@stable
+      - name: Reproduce original uncertified interpreter selection
+        shell: pwsh
+        run: |
+          # Diagnostic branch only: reproduce the original build's interpreter.
+          foreach ($path in @('scripts/setup-windows.ps1', 'scripts/build-windows.ps1')) {
+            (Get-Content $path -Raw).Replace('(3, 12)', '(3, 14)') | Set-Content $path
+          }
+          '3.14' | Set-Content .python-version
+          '3.14' | Set-Content core/.python-version
       - name: Build packaged Windows executable
         shell: pwsh
         run: ./scripts/build-windows.ps1 -NoBundle -PythonExecutable '${{ steps.python.outputs.python-path }}'
       - name: Verify packaged desktop window and Core lifecycle
         shell: pwsh
         run: ./scripts/smoke-windows.ps1
-      - name: Windows Core and native integration tests
-        shell: pwsh
-        run: |
-          ./tests/integration/test_windows_smoke_diagnostics.ps1
-          & ./core/.venv/Scripts/python.exe -m pytest core/tests tests/integration -q
-          if ($LASTEXITCODE -ne 0) { throw 'Windows Core tests failed.' }
-          & ./core/.venv/Scripts/python.exe scripts/smoke-core.py --executable desktop/src-tauri/target/release/binaries/kat-core/kat-core.exe
-          if ($LASTEXITCODE -ne 0) { throw 'Packaged Core smoke failed.' }
-          $env:KAT_NATIVE_TEST_REPO = (Get-Location).Path
-          cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --no-default-features
-          if ($LASTEXITCODE -ne 0) { throw 'Windows native tests failed.' }
-          cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --no-default-features -- --ignored --skip sleeper_fixture --skip launcher_fixture --test-threads=1
-          if ($LASTEXITCODE -ne 0) { throw 'Windows native Core integration tests failed.' }
       - name: Upload Windows startup diagnostics
         if: always()
         uses: actions/upload-artifact@v4

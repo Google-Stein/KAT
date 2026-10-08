@@ -235,8 +235,6 @@ class ApplicationAllowlist:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 close_fds=True,
-                # Only approved, fixed application definitions escape Core lifetime.
-                creationflags=0x01000000 if sys.platform == "win32" else 0,
                 cwd=str(Path(definition.executable).parent),
                 env=_child_environment(),
             )
