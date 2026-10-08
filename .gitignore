@@ -43,3 +43,6 @@ Thumbs.db
 .cache/
 .kat-tools/
 test-results/
+
+# Personal-data migration snapshots
+*.backup-v*

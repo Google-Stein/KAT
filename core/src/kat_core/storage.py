@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
 
+from kat_core.migrations import migrate
 from kat_core.schemas import Approval, AuditEntry, Message, Session, SettingsUpdate
 
 
@@ -24,31 +25,13 @@ class Store:
         self._db = sqlite3.connect(path, check_same_thread=False, timeout=10)
         self._db.row_factory = sqlite3.Row
         with self._lock:
-            self._db.executescript("""
-                PRAGMA foreign_keys=ON;
-                PRAGMA journal_mode=WAL;
-                CREATE TABLE IF NOT EXISTS sessions (
-                    id TEXT PRIMARY KEY, title TEXT NOT NULL,
-                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS messages (
-                    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-                    id TEXT NOT NULL UNIQUE, session_id TEXT NOT NULL REFERENCES sessions(id),
-                    role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL);
-                CREATE INDEX IF NOT EXISTS messages_session ON messages(session_id, sequence);
-                CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY CHECK(id=1),
-                    value TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS approvals (
-                    id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id),
-                    tool_name TEXT NOT NULL, arguments TEXT NOT NULL, risk TEXT NOT NULL,
-                    status TEXT NOT NULL, created_at TEXT NOT NULL, result TEXT, error TEXT);
-                CREATE INDEX IF NOT EXISTS approvals_session ON approvals(session_id, created_at);
-                CREATE TABLE IF NOT EXISTS audit (
-                    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-                    id TEXT NOT NULL UNIQUE, timestamp TEXT NOT NULL, event TEXT NOT NULL,
-                    session_id TEXT, tool_name TEXT, approval_id TEXT,
-                    details TEXT NOT NULL, error TEXT);
-                PRAGMA user_version=1;
-                """)
+            self._db.execute("PRAGMA foreign_keys=ON")
+            try:
+                migrate(self._db, path)
+                self._db.execute("PRAGMA journal_mode=WAL")
+            except BaseException:
+                self._db.close()
+                raise
             initial = SettingsUpdate(model=default_model)
             self._db.execute(
                 "INSERT OR IGNORE INTO settings(id,value) VALUES (1,?)",

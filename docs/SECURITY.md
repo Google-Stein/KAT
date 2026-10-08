@@ -49,3 +49,13 @@ old key and Core. Remove needs explicit UI confirmation. A failed vault operatio
 does not restart Core. Successful changes restart the owned Core and refresh its
 in-memory bearer token; conversations and approvals remain in SQLite. Unsupported
 platforms report that native storage is unavailable rather than storing plaintext.
+
+## Database upgrades
+
+Ordered schema migrations execute in one exclusive SQLite transaction. Failed
+steps roll back DDL, data and `user_version`; unsupported newer schemas fail
+closed. Before upgrading existing data, SQLite's backup API creates a uniquely
+named restricted-permission `.backup-vN-*` sibling containing committed WAL data.
+Backups contain personal transcripts: protect them like the original database.
+Restore only while KAT is stopped, preserving the failed original for diagnosis.
+There is no downgrade or automatic destructive recovery.
