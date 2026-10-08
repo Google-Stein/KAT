@@ -1,26 +1,162 @@
 # Validation record
 
-## KAT 0.3 implementation gates — Windows pending
+## KAT 0.3 — bounded explicit memory
 
-The owner approved bounded explicit memory. The current implementation has **174
-passing Core/integration tests** (148 prior checks plus 26 memory checks) and **32
-passing frontend tests**. Ruff, formatting, strict mypy, TypeScript, ESLint and the
-production frontend build passed locally. Real CLI startup/authentication/keyless
-errors/restart persistence/shutdown passed. Native unit/packaging checks are being
-completed and actual Windows/installed Ollama validation remains a release gate.
-No v0.3 tag or release is authorized by these Linux-only results.
+The implementation was reconciled with published v0.2.1 commit
+`c870111b813a3d1ba5b28b2a4bbac164d6f0f076`. Owner approval covers explicit memory
+only. Automatic extraction, embeddings, cloud injection, planning and autonomy
+remain unimplemented. The sections below this 0.3 record preserve historical
+release evidence and are not current test totals.
 
-`uv run --project core python scripts/benchmark-memory.py` measured 5,000 synthetic
-records over 100 iterations on Linux: a matching and an unrelated query combined
-had **0.603 ms median / 0.873 ms p95**, with at most 50 candidates read per query.
-These are retrieval measurements, not model/GPU latency. The installed Windows
-acceptance helper now creates/enables memory through reviewed UI, restarts KAT,
-uses it in a new real Ollama conversation, inspects exact revision use, edits,
-forgets, verifies no subsequent usage and tests reviewed conversation selection.
-Results will be recorded after the workflow actually executes.
+### Local checks
 
-The sections below preserve earlier release evidence; they do not establish 0.3
-validation. Live OpenAI billing and owner RTX 4090/model quality remain manual.
+Commands ran in the Linux cloud workspace with CPython 3.12.14, Node 24.19.0,
+Rust 1.99.0 and committed Python/npm/Cargo locks. Windows packaging uses the exact
+GitHub Actions CPython 3.12.10 executable, not `py -3`.
+
+| Command / gate | Result |
+| --- | --- |
+| `uv run --directory core pytest tests ../tests/integration -q` | **181 passed**, including 33 new memory checks and all prior tool-history/security regressions |
+| `uv run --directory core ruff check .` and changed Python acceptance/benchmark scripts | Passed using Core's lint configuration |
+| `uv run --directory core ruff format --check .` and changed scripts | Passed |
+| `uv run --directory core mypy` | Passed; strict typing, 21 source modules |
+| `python scripts/version.py --check`; `git diff --check` | Passed |
+| Desktop `npm test` | **35 passed** |
+| Desktop `npm run lint`, `format:check`, `typecheck`, `build` | Passed; production frontend assets built |
+| `cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --no-default-features` | **20 passed**, four ignored subprocess/explicit integration fixtures |
+| `cargo fmt --manifest-path desktop/src-tauri/Cargo.toml --check` | Passed |
+| `cargo clippy --locked --manifest-path desktop/src-tauri/Cargo.toml --all-targets --features tauri/custom-protocol -- -D warnings` | Passed with Linux GUI dependencies; Windows `x86_64-pc-windows-msvc` target also passed, not a local Windows runtime claim |
+| Native opt-in `--ignored --skip sleeper_fixture --test-threads=1` with `KAT_NATIVE_TEST_REPO` | Three real Core integration tests passed, including current PyInstaller distribution and port cleanup |
+| Current Linux PyInstaller build; `scripts/smoke-core.py` standalone and `--executable` packaged | Passed actual startup, authentication/unauthorized rejection, keyless error, restart persistence and shutdown |
+| PowerShell `tests/integration/test_windows_smoke_diagnostics.ps1` | **18 diagnostic checks passed**; Linux PowerShell execution is separate from actual Windows lifecycle acceptance |
+| `uv run --project core python scripts/benchmark-memory.py` | 5,000 synthetic records, 100 iterations: matching + unrelated query combined **0.603 ms median / 0.873 ms p95**, at most 50 candidates per query |
+
+Retrieval measurements are not inference/GPU latency. Retrieval returns at most
+four whole records within 4,000 serialized characters, applies relevance and
+scope/status/date filters and abstains when evidence is weak. No full-table
+Python scan, embeddings or external search service is involved.
+
+Core/integration tests exercise schema-2 upgrade preservation, WAL-inclusive
+migration backup, atomic rollback, future-schema refusal, FTS rebuild, explicit
+creation and source validation, project isolation, eligibility/relevance/budgets,
+expiry/supersession, revision concurrency, secret rejection/redacted errors,
+local-only context, prompt injection against actual tool permission boundaries,
+cloud exclusion and no fallback, atomic reply/usage recording, forget including
+revisions/search artifacts and forget during a model run. Cloud tests execute the
+actual OpenAI Agents SDK/HTTP adapter with synthetic transport: memory payloads
+are absent and usage is zero; normal transcript behavior is explicitly distinct.
+
+Frontend tests cover review/cancel/confirm creation and Remember, retained failed
+save drafts, provenance/unavailable sources, exact used revisions, escaping,
+edit/revision history, pin/status, supersession, explicit Forget confirmation,
+retrieval default/off/privacy notices and prior chat/settings/approval behavior.
+
+### Windows installed acceptance
+
+[Full CI **37853734500**](https://github.com/Google-Stein/KAT/actions/runs/37853734500)
+passed **Core, desktop and Windows** on 2026-10-08 for source
+`c33e42ae02022ac351c94ac5024518ad8331bb82`. Windows completed at
+22:37:40 UTC. This is actual Windows execution, not cross-compilation or a mocked
+model. The NSIS installer was built from current resources, installed into a path
+with spaces, exercised, relaunched and uninstalled while preserving local data.
+
+| Windows command / gate | Actual result |
+| --- | --- |
+| `scripts/build-windows.ps1 -PythonExecutable <setup-python executable>` | CPython **3.12.10 x64**; PyInstaller Core, native desktop and NSIS installer passed |
+| `scripts/smoke-windows.ps1` | Real window, native authenticated readiness, independent unauthorized HTTP **401**, exactly one owned Core/listener; normal close and forced termination stopped Core and released port **42800** |
+| `scripts/smoke-installed-windows.ps1 -LocalInference` | Installed lifecycle, relaunch persistence, real Ollama/Core/UI/tool/memory sequence and uninstall/data preservation all passed |
+| `scripts/test-local-windows.ps1` / `smoke-local.py` | Actual **Ollama 0.40.1 / Qwen3:1.7b CPU**; real conversation with no OpenAI key; two fresh time results, separate Notepad and Calculator approvals/executions/audit |
+| `scripts/smoke-installed-ui.py` via installed acceptance | Native credential cancel/save/replace/restart/remove with synthetic keys, actual UI chat, fresh time twice, Notepad twice and Calculator window; approved apps survive KAT close |
+| `tests/integration/test_windows_smoke_diagnostics.ps1` | **18 passed**, including transient probes within the original deadline and distinct failure classifications |
+| `core/.venv/Scripts/python.exe -m pytest core/tests tests/integration -q` | **180 passed, 1 skipped**: POSIX execute-bit check is inapplicable on Windows |
+| `scripts/smoke-core.py --executable <packaged kat-core.exe>` | Actual packaged CLI/authentication/keyless error/restart persistence/shutdown passed |
+| Windows `cargo test --locked ... --no-default-features` | **21 passed**; five fixture/opt-in tests ignored in the ordinary invocation |
+| Windows native `--ignored --skip sleeper_fixture --skip launcher_fixture --test-threads=1` | All **three** real Core lifetime/packaging integrations passed |
+| Installer/executable/diagnostics uploads | Passed; first green artifacts **11583313026 / 11582949065 / 11583417560** |
+
+The installed owner-facing memory journey passed through real accessibility and
+mouse/keyboard input; mutations used the UI, not direct SQLite writes:
+
+1. Verify retrieval starts off; explicitly enable it and review/confirm
+   “KAT should prefer local models when practical.”
+2. Close/relaunch KAT, create a new conversation and ask the local/cloud preference
+   question. Actual Ollama reflects the preference; the inspector shows record
+   ID/revision **1** and owner-entered provenance.
+3. Review/edit the wording to prefer cloud models. A new conversation still uses
+   local inference, reflects the revised preference and records revision **2**
+   only; both private revisions remain inspectable.
+4. Open Forget, verify the transcript/backup notice and explicitly confirm.
+   Current wording, revisions and FTS entries disappear. A new local conversation
+   records **zero** memory usage and has no memory inspector.
+5. Choose Remember on a user message, review/edit/confirm, verify selected-message
+   session/message/role provenance and navigate back to its source conversation.
+
+[Focused UI run **37854169898**](https://github.com/Google-Stein/KAT/actions/runs/37854169898)
+also passed that entire real-Ollama sequence using the rebuilt executable from
+run 37852681897 with the current acceptance helper. It did **not** install an NSIS
+bundle and is diagnostic corroboration, not the full installed release gate.
+[Core-only run **37850206839**](https://github.com/Google-Stein/KAT/actions/runs/37850206839)
+passed actual time/repeated Notepad/Calculator selection and approval checks;
+it does not establish UI or memory validation.
+
+### Failures investigated before the green gate
+
+- Runs **37848201789** and **37851161161** stopped after a saved memory edit.
+  Geometry diagnosis in **37852115224** proved the enabled New conversation
+  button had moved to **y=-477**: Memory lacked its own scrolling container, so
+  focus/scroll moved the entire hidden-overflow app shell, including navigation.
+  Adding the Memory pane's own overflow/padding fixed this product defect.
+  Installed acceptance now asserts visible/enabled navigation after review;
+  run **37852681897** proved revision-2 recall before reaching a later UI failure.
+- **37849337086** produced no fresh time result during the real local tool loop.
+  Its emitted tool payload was not retained, so an exact model-side cause is not
+  claimed. Zero-memory turns now preserve the certified v0.2.1 prompt byte for
+  byte; memory rules apply only when records are inserted. Safe audit diagnostics
+  were added, and subsequent real time/application checks passed repeatedly.
+- **37850174158** authenticated Core successfully, but a three-second independent
+  HTTP probe canceled while WebView2 was creating the window. Probe execution
+  now follows window creation and retries only classified transient network
+  failures within the **unchanged 45-second** readiness deadline. The request
+  timeout, required 401 and ownership checks remain unchanged; regression checks
+  cover timeout, wrong HTTP status, wrapped errors and unexpected failures.
+- **37851123579** could not scroll a provider control into view; **37852681897**
+  stopped before Forget confirmation without sending a deletion request. CI's
+  restored **1044×788** window exceeded its work area. The acceptance helper now
+  focuses and normally maximizes the window (observed outer bounds
+  **[-8,-8,1032,728]**) so real click targets stay onscreen. The complete installed
+  sequence then passed; approval and deletion assertions were retained.
+- Diagnostic run **37851721482** hit the helper's rectangle serialization error;
+  explicit coordinates fixed it. **37853733975** stopped on an opaque KeyError
+  before Calculator approval. Safe stack-location diagnostics were added;
+  subsequent focused and full installed checks passed. Neither failed diagnostic
+  is counted as validation. Superseded runs were canceled rather than published.
+
+No startup timeout was increased and no debug port, renderer credential path,
+remote endpoint, arbitrary executable or approval bypass was introduced.
+
+Publication must use a successful **exact tagged-source** Core/Desktop/Windows
+run, including the final documentation commit. The release notes link that final
+run. The release workflow rejects mismatched/incomplete gates and uploads only
+that run's installer plus SHA256SUMS; the first green run above is evidence for
+this record, not permission to tag later unvalidated source.
+
+### Remaining owner checks and limits
+
+Live OpenAI account validity, quota and billing were not tested. OpenAI exclusion
+uses the actual SDK with synthetic HTTP transport, not a live paid call. The
+Windows Ollama acceptance uses Qwen3:1.7b on hosted CPU hardware; owner RTX 4090
+performance, preferred larger models, paraphrase quality and sustained everyday
+memory behavior require owner testing. The installer is unsigned and Windows
+may show a publisher warning.
+
+FTS5 is lexical, so synonyms/paraphrases may abstain. Pins do not force irrelevant
+retrieval. Memory is ordinary local SQLite data, not encrypted by KAT; only normal
+sensitivity is supported and recognizable credentials are rejected. Forget removes
+active memory/revision/search wording, not original transcripts, old backups or
+forensic WAL/filesystem copies. It cannot revoke an already running model's
+context. Prior assistant replies remain ordinary transcript; an explicitly
+selected cloud conversation may therefore contain the same words even though no
+memory-record payload is injected. No automatic extraction or autonomy was added.
 
 Initial Linux validation ran in the Codex cloud workspace on 2026-10-07. The corrected packaged Windows runtime passed GitHub Actions on 2026-10-08; see the release-gate evidence below. No live OpenAI call was made: no provider key was present. The initial cloud network policy also denied HTTPS CONNECT to `api.openai.com`; GitHub Actions log access was subsequently configured and verified. SDK tests replace HTTP transport, not production permission/storage/orchestration logic.
 

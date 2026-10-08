@@ -202,7 +202,7 @@ On Linux, Tauri additionally needs GTK3, WebKitGTK 4.1, an application-indicator
 - **Memory input refused:** never save credentials or sensitive vault content. Only normal sensitivity is supported; review the wording/scope and use timezone-aware dates in API requests. Rejected private input is not reflected in the error response.
 
 - Standalone Core data defaults to `%LOCALAPPDATA%\KAT` on Windows and `$XDG_DATA_HOME/kat` (normally `~/.local/share/kat`) on Linux. Desktop-managed data uses `%LOCALAPPDATA%\com.kat.assistant` on Windows and `$XDG_DATA_HOME/com.kat.assistant` on Linux. `KAT_DATA_DIR`/`--data-dir` can override standalone storage.
-- SQLite stores sessions, messages, settings, approvals, and audit events. API keys and bearer tokens are excluded. Back up with Core stopped; local data is not encrypted by this version.
+- SQLite stores sessions, messages, settings, approvals, audit events and explicit memory with revisions/usage links. API keys and bearer tokens are excluded. Back up with Core stopped; local data is not encrypted by this version.
 - **Provider not configured:** select Local/Ollama or save an OpenAI key through the native Settings dialog. Settings reports key presence; a chat checks account validity. Optional environment overrides take precedence over the vault.
 - **Local backend unreachable:** start Ollama on `127.0.0.1:11434` and refresh provider status. Do not expose it to your LAN.
 - **Local model missing:** install the chosen model with `ollama pull MODEL`, then refresh. Downloads are explicit, can be several gigabytes, and are separate from KAT installation.
@@ -214,7 +214,7 @@ On Linux, Tauri additionally needs GTK3, WebKitGTK 4.1, an application-indicator
 - **Native build fails:** check Rust/MSVC/Windows SDK and WebView2 prerequisites. On Linux, check the GTK/WebKit development libraries. Re-run setup using the committed lockfiles.
 - **401/403 in browser development:** use the current standalone token, the exact allowed development origin/loopback URL, and avoid using a token from a previous desktop process.
 
-For measured results from this implementation environment and unverified external checks, see [validation](docs/VALIDATION.md). The next deliberate gate is [memory architecture review](docs/MEMORY_DESIGN_PROPOSAL.md); no semantic memory has been implemented.
+For measured results and remaining owner checks, see [validation](docs/VALIDATION.md). The owner-approved [memory design](docs/MEMORY_DESIGN_PROPOSAL.md) is implemented for bounded explicit memory. The next gate is real-world owner testing; automatic extraction, embeddings and autonomy require a new design decision.
 
 ## Trusted application configuration
 
