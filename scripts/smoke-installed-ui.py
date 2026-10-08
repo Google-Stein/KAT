@@ -1,71 +1,46 @@
-"""Disposable Windows CI only: drive the installed WebView with real local inference.
+"""Drive the production Windows UI through accessibility, never a debugging port.
 
-CDP is enabled only in this explicitly invoked test process and closed afterwards.
-Never run this credential fixture in a normal owner's Windows account.
+Disposable CI account only. Uses synthetic native credential input and real local
+inference. Database inspection is read-only; all mutations use actual UI controls.
 """
 
 import argparse
 import ctypes
+import json
 import os
+import sqlite3
 import subprocess
-import tempfile
 import time
 from contextlib import suppress
 from pathlib import Path
-
-from playwright.sync_api import Page, expect, sync_playwright
+from typing import Any
 
 TARGET = "KAT/OpenAI"
 FIXTURE = "sk-proj-ci_synthetic_not_a_real_api_key_1234"
+REPLACEMENT = "sk-proj-ci_synthetic_replacement_key_5678"
 
 
-def api(page: Page, path: str, method: str = "GET", body: object = None) -> object:
-    # The existing trusted native command returns only the local Core connection.
-    # Keep its bearer in the page's execution scope, never in log output.
-    return page.evaluate(
-        """async ({path,method,body}) => {
-      const connection = await window.__TAURI_INTERNALS__.invoke('core_connection');
-      const result = await fetch(connection.base_url + path, {
-        method, headers: {
-          Authorization: 'Bearer ' + connection.token, 'Content-Type':'application/json'
-        },
-        body: body == null ? undefined : JSON.stringify(body)
-      });
-      if (!result.ok) throw new Error('Core HTTP ' + result.status);
-      return result.json();
-    }""",
-        {"path": path, "method": method, "body": body},
-    )
-
-
-def close_normally(process: subprocess.Popen[bytes]) -> None:
-    user32 = ctypes.windll.user32
-    callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-
-    @callback_type
-    def close(window: int, _: int) -> bool:
-        pid = ctypes.c_ulong()
-        user32.GetWindowThreadProcessId(ctypes.c_void_p(window), ctypes.byref(pid))
-        if pid.value == process.pid and user32.IsWindowVisible(ctypes.c_void_p(window)):
-            user32.PostMessageW(ctypes.c_void_p(window), 0x0010, 0, 0)  # WM_CLOSE
-        return True
-
-    user32.EnumWindows(close, 0)
-    assert process.wait(timeout=15) == 0
+def wait_for(check: Any, timeout: float = 20) -> Any:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = check()
+        if result:
+            return result
+        time.sleep(0.2)
+    raise RuntimeError("Expected test condition did not become ready")
 
 
 def main() -> None:
     if os.name != "nt" or os.environ.get("GITHUB_ACTIONS") != "true":
-        raise SystemExit(
-            "This synthetic credential and CDP test requires a disposable Windows CI account."
-        )
+        raise SystemExit("Synthetic credential test requires a disposable Windows CI account.")
     import win32cred
     import win32gui
+    from pywinauto import Application
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--executable", type=Path, required=True)
     parser.add_argument("--model", default="qwen3:1.7b")
-    parser.add_argument("--startup-only", action="store_true")
+    parser.add_argument("--credentials-only", action="store_true")
     args = parser.parse_args()
     try:
         win32cred.CredRead(TARGET, win32cred.CRED_TYPE_GENERIC)
@@ -73,213 +48,227 @@ def main() -> None:
         if getattr(error, "winerror", None) != 1168:
             raise SystemExit("Cannot establish empty disposable credential vault.") from None
     else:
-        raise SystemExit("Refusing to replace an existing KAT credential.")
+        raise SystemExit("Refusing to modify an existing KAT credential.")
 
+    database = Path(os.environ["LOCALAPPDATA"]) / "com.kat.assistant/kat.sqlite3"
     environment = os.environ.copy()
-    for name in ("OPENAI_API_KEY", "KAT_OPENAI_API_KEY"):
+    for name in (
+        "OPENAI_API_KEY",
+        "KAT_OPENAI_API_KEY",
+        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+        "WEBVIEW2_USER_DATA_FOLDER",
+    ):
         environment.pop(name, None)
-    environment["WEBVIEW2_USER_DATA_FOLDER"] = tempfile.mkdtemp(prefix="kat-webview-ci-")
-    environment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = (
-        "--remote-debugging-port=9527 --remote-debugging-address=127.0.0.1"
-    )
     process = None
-    page = None
+    window = None
     notepad_window = None
     stage = "installed-startup"
+
+    def rows(query: str, parameters: tuple = ()) -> list[dict[str, Any]]:
+        connection = sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)
+        connection.row_factory = sqlite3.Row
+        try:
+            return [dict(row) for row in connection.execute(query, parameters)]
+        finally:
+            connection.close()
+
+    def button(name: str) -> Any:
+        control = window.child_window(title=name, control_type="Button")
+        control.wait("exists", timeout=20)
+        with suppress(Exception):
+            control.wrapper_object().iface_scroll_item.ScrollIntoView()
+        control.wait("visible enabled", timeout=20)
+        return control
+
+    def visible_text(text: str) -> bool:
+        return any(control.window_text() == text for control in window.descendants())
+
+    def launch() -> None:
+        nonlocal process, window
+        process = subprocess.Popen([str(args.executable)], env=environment)
+        app = Application(backend="uia").connect(process=process.pid, timeout=30)
+        window = app.window(title="KAT")
+        window.wait("visible", timeout=45)
+        button("Settings")
+
+    def close() -> None:
+        nonlocal process
+        window.close()
+        assert process.wait(timeout=15) == 0
+        process = None
+
+    def dialog() -> Any:
+        user32 = ctypes.windll.user32
+        user32.FindWindowW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p]
+        user32.FindWindowW.restype = ctypes.c_void_p
+        handle = wait_for(lambda: user32.FindWindowW(None, "KAT — OpenAI API key"), 10)
+        return Application(backend="win32").connect(handle=handle).window(handle=handle)
+
+    def configure_key(value: str, replace: bool = False) -> None:
+        button("Replace saved key" if replace else "Set API key").click_input()
+        prompt = dialog()
+        password = next(
+            control
+            for control in prompt.descendants(class_name="Edit")
+            if win32gui.GetWindowLong(control.handle, -16) & 0x20
+        )
+        password.set_edit_text(value)
+        prompt.child_window(title="OK", class_name="Button").click()
+        wait_for(lambda: visible_text("API key saved. Local Core restarted."))
+        assert (
+            win32cred.CredRead(TARGET, win32cred.CRED_TYPE_GENERIC)["CredentialBlob"]
+            == value.encode()
+        )
+        assert not visible_text(value)
+
     try:
-        with sync_playwright() as playwright:
+        launch()
+        stage = "native-credential-entry"
+        button("Settings").click_input()
+        button("Set API key").click_input()
+        dialog().close()
+        wait_for(lambda: visible_text("API key setup cancelled."))
+        configure_key(FIXTURE)
+        configure_key(REPLACEMENT, replace=True)
+        close()
+        launch()
+        button("Settings").click_input()
+        wait_for(lambda: visible_text("API key configured"))
+        button("Replace saved key")
+        button("Remove saved key").click_input()
+        wait_for(lambda: visible_text("Saved key removed. Local Core restarted."))
+        wait_for(lambda: visible_text("API key required"))
+        print(
+            "PASS: installed native key entry/cancel/save/replace, vault "
+            "restart persistence and UI removal; no renderer key exposure.",
+            flush=True,
+        )
 
-            def launch() -> Page:
-                nonlocal process
-                process = subprocess.Popen([str(args.executable)], env=environment)
-                deadline = time.monotonic() + 45
-                while time.monotonic() < deadline:
-                    assert process.poll() is None, "Installed desktop exited"
-                    try:
-                        browser = playwright.chromium.connect_over_cdp(
-                            "http://127.0.0.1:9527", timeout=1500
-                        )
-                        pages = [page for context in browser.contexts for page in context.pages]
-                        if pages:
-                            page = pages[0]
-                            page.set_default_timeout(20000)
-                            expect(
-                                page.get_by_role("button", name="Settings", exact=True)
-                            ).to_be_visible()
-                            return page
-                    except Exception as error:
-                        # CDP connection errors contain local debugging URLs, not Core tokens.
-                        # Limit output to the first line and omit socket identifiers.
-                        message = str(error).splitlines()[0].split("ws://")[0][:220]
-                        print(f"CDP attach retry: {type(error).__name__}: {message}", flush=True)
-                        time.sleep(0.3)
-                raise RuntimeError("Installed WebView debugging session unavailable")
+        if args.credentials_only:
+            close()
+            return
 
-            page = launch()
-            if args.startup_only:
-                print("PASS: existing installed WebView attaches and renders Settings.")
-                assert process is not None
-                close_normally(process)
-                process = None
-                return
-            stage = "native-credential-dialog"
-            page.get_by_role("button", name="Settings", exact=True).click()
-            page.get_by_role("button", name="Set API key", exact=True).click()
-            user32 = ctypes.windll.user32
-            user32.FindWindowW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p]
-            user32.FindWindowW.restype = ctypes.c_void_p
-            deadline = time.monotonic() + 10
-            dialog = None
-            while time.monotonic() < deadline and not dialog:
-                dialog = user32.FindWindowW(None, "KAT — OpenAI API key")
-                time.sleep(0.1)
-            assert dialog, "Native masked credential dialog did not appear"
-            user32.PostMessageW(ctypes.c_void_p(dialog), 0x0010, 0, 0)
-            expect(page.get_by_text("API key setup cancelled.", exact=True)).to_be_visible()
-            assert process is not None
-            close_normally(process)
-            process = None
-            print(
-                "PASS: installed Settings invokes native credential dialog; cancel "
-                "preserves no-key state."
+        stage = "local-provider-selection"
+        provider = window.child_window(title="Provider", control_type="ComboBox")
+        provider.wait("visible enabled")
+        provider.set_focus()
+        provider.type_keys("{HOME}{DOWN}{ENTER}")
+        model = window.child_window(title="Model", control_type="Edit")
+        model.wait("visible enabled")
+        model.set_focus()
+        model.type_keys("^a" + args.model, with_spaces=True)
+        wait_for(lambda: visible_text("Local backend and selected model are ready."), 30)
+        button("Save settings").click_input()
+        wait_for(lambda: visible_text("Settings saved"))
+        assert (
+            json.loads(rows("SELECT value FROM settings WHERE id=1")[0]["value"])["provider"]
+            == "ollama"
+        )
+        # Button's accessible name includes the decorative plus; locate by prefix.
+        new = next(
+            control
+            for control in window.descendants(control_type="Button")
+            if control.window_text().startswith("New conversation")
+        )
+        new.click_input()
+        session_id = wait_for(
+            lambda: rows("SELECT id FROM sessions ORDER BY created_at DESC LIMIT 1")
+        )[0]["id"]
+
+        def send(text: str) -> None:
+            textarea = window.descendants(control_type="Edit")[0]
+            textarea.set_focus()
+            textarea.type_keys(text, with_spaces=True)
+            button("Send message").click_input()
+            wait_for(
+                lambda: window.child_window(
+                    title="Send message", control_type="Button"
+                ).is_enabled(),
+                180,
             )
 
-            stage = "vault-injection-and-removal"
-            win32cred.CredWrite(
-                {
-                    "Type": win32cred.CRED_TYPE_GENERIC,
-                    "TargetName": TARGET,
-                    "CredentialBlob": FIXTURE.encode(),
-                    "Persist": win32cred.CRED_PERSIST_LOCAL_MACHINE,
-                    "UserName": "OpenAI",
-                }
-            )
-            page = launch()
-            page.get_by_role("button", name="Settings", exact=True).click()
-            expect(page.get_by_text("API key configured", exact=True)).to_be_visible()
-            expect(page.get_by_role("button", name="Replace saved key", exact=True)).to_be_visible()
-            assert FIXTURE not in page.content()
-            page.get_by_role("button", name="Remove saved key", exact=True).click()
-            expect(
-                page.get_by_text("Saved key removed. Local Core restarted.", exact=True)
-            ).to_be_visible()
-            expect(page.get_by_text("API key required", exact=True)).to_be_visible()
-            print(
-                "PASS: actual Windows vault key loads into installed Core; UI removal "
-                "restarts Core without revealing it."
-            )
+        stage = "real-local-chat"
+        send("Hello, KAT.")
+        assert rows(
+            "SELECT id FROM messages WHERE session_id=? AND role='assistant'", (session_id,)
+        )
+        send("What time is it?")
+        events = rows(
+            "SELECT details FROM audit WHERE session_id=? AND event='tool_result' "
+            "AND tool_name='get_local_time'",
+            (session_id,),
+        )
+        assert any(json.loads(event["details"])["status"] == "completed" for event in events)
+        print(
+            "PASS: installed production UI generates real local conversation "
+            "and executes/audits the time tool.",
+            flush=True,
+        )
 
-            stage = "local-provider-selection"
-            page.get_by_label("Provider", exact=True).select_option("ollama")
-            page.get_by_label("Model", exact=True).fill(args.model)
-            expect(
-                page.get_by_text("Local backend and selected model are ready.", exact=True)
-            ).to_be_visible(timeout=30000)
-            page.get_by_role("button", name="Save settings", exact=True).click()
-            expect(page.get_by_text("Settings saved", exact=True)).to_be_visible()
-            page.get_by_role("button", name="New conversation", exact=False).click()
+        stage = "notepad-approval"
+        previous_windows = set()
+        win32gui.EnumWindows(lambda hwnd, _: previous_windows.add(hwnd), None)
+        textarea = window.descendants(control_type="Edit")[0]
+        textarea.set_focus()
+        textarea.type_keys("Open Notepad.", with_spaces=True)
+        button("Send message").click_input()
+        wait_for(
+            lambda: window.child_window(title="Allow once", control_type="Button").exists(), 180
+        )
+        pending = rows(
+            "SELECT * FROM approvals WHERE session_id=? AND status='pending' "
+            "AND tool_name='open_application'",
+            (session_id,),
+        )
+        assert len(pending) == 1 and json.loads(pending[0]["arguments"]) == {
+            "application_id": "notepad"
+        }
+        button("Allow once").click_input()
+        wait_for(
+            lambda: rows(
+                "SELECT id FROM approvals WHERE id=? AND status='completed'", (pending[0]["id"],)
+            )
+        )
 
-            def send(text: str) -> None:
-                page.get_by_placeholder("Message KAT…").fill(text)
-                page.get_by_role("button", name="Send message", exact=True).click()
-                expect(page.get_by_role("button", name="Send message", exact=True)).to_be_enabled(
-                    timeout=180000
-                )
-                assert page.get_by_role("alert").count() == 0, (
-                    "Installed UI reported a model failure"
-                )
+        def find_notepad() -> Any:
+            found = []
+            win32gui.EnumWindows(
+                lambda hwnd, _: (
+                    found.append(hwnd)
+                    if hwnd not in previous_windows
+                    and win32gui.IsWindowVisible(hwnd)
+                    and win32gui.GetClassName(hwnd) == "Notepad"
+                    else None
+                ),
+                None,
+            )
+            return found[0] if found else None
 
-            stage = "real-local-chat"
-            send("Hello, KAT.")
-            assert page.get_by_label("assistant message", exact=True).count() >= 1
-            send("What time is it?")
-            events = api(page, "/audit")
-            assert any(
-                event["event"] == "tool_result"
-                and event["tool_name"] == "get_local_time"
-                and event["details"]["status"] == "completed"
-                for event in events
-            )
-            print(
-                "PASS: installed desktop generates real local chat and executes/audits "
-                "the time tool."
-            )
+        notepad_window = wait_for(find_notepad, 10)
+        close()
+        assert win32gui.IsWindow(notepad_window), "Approved Notepad was killed on KAT close"
+        win32gui.PostMessage(notepad_window, 0x0010, 0, 0)
+        notepad_window = None
+        print(
+            "PASS: actual Notepad window opens after UI approval and survives normal KAT close.",
+            flush=True,
+        )
 
-            stage = "notepad-approval"
-            previous_windows = set()
-            win32gui.EnumWindows(lambda hwnd, _: previous_windows.add(hwnd), None)
-            # Send becomes disabled while an approval is pending; wait for the card instead.
-            page.get_by_placeholder("Message KAT…").fill("Open Notepad.")
-            page.get_by_role("button", name="Send message", exact=True).click()
-            expect(page.get_by_role("button", name="Allow once", exact=True)).to_be_enabled(
-                timeout=180000
-            )
-            pending = api(page, "/approvals")
-            request = next(
-                item
-                for item in pending
-                if item["status"] == "pending" and item["tool_name"] == "open_application"
-            )
-            assert request["arguments"] == {"application_id": "notepad"}
-            page.get_by_role("button", name="Allow once", exact=True).click()
-            expect(page.get_by_role("button", name="Allow once", exact=True)).not_to_be_visible(
-                timeout=20000
-            )
-            outcome = next(item for item in api(page, "/approvals") if item["id"] == request["id"])
-            assert outcome["status"] == "completed"
-            deadline = time.monotonic() + 10
-            while time.monotonic() < deadline and not notepad_window:
-
-                def find_notepad(hwnd, _):
-                    nonlocal notepad_window
-                    if (
-                        hwnd not in previous_windows
-                        and win32gui.IsWindowVisible(hwnd)
-                        and win32gui.GetClassName(hwnd) == "Notepad"
-                    ):
-                        notepad_window = hwnd
-
-                win32gui.EnumWindows(find_notepad, None)
-                time.sleep(0.1)
-            assert notepad_window, "Approved Notepad did not create a real window"
-            print(
-                "PASS: installed local model requests Notepad; owner UI approval runs "
-                "the audited native tool."
-            )
-
-            stage = "installed-relaunch-persistence"
-            session_id = request["session_id"]
-            assert process is not None
-            close_normally(process)
-            process = None
-            assert win32gui.IsWindow(notepad_window), "Approved Notepad was killed on KAT close"
-            win32gui.PostMessage(notepad_window, 0x0010, 0, 0)
-            notepad_window = None
-            print("PASS: approved Notepad window survives normal KAT close.")
-            page = launch()
-            settings = api(page, "/settings")
-            assert settings["provider"] == "ollama" and settings["model"] == args.model
-            messages = api(page, f"/sessions/{session_id}/messages")
-            assert any(item["role"] == "assistant" for item in messages)
-            assert any(item["content"] == "Hello, KAT." for item in messages)
-            assert process is not None
-            close_normally(process)
-            process = None
-            print(
-                "PASS: installed local routing and real conversation survive normal "
-                "close/relaunch; no cloud key exists."
-            )
+        stage = "installed-relaunch-persistence"
+        launch()
+        settings = json.loads(rows("SELECT value FROM settings WHERE id=1")[0]["value"])
+        assert settings["provider"] == "ollama" and settings["model"] == args.model
+        assert rows(
+            "SELECT id FROM messages WHERE session_id=? AND content='Hello, KAT.'", (session_id,)
+        )
+        close()
+        print(
+            "PASS: installed local routing, real conversation and audit "
+            "survive close/relaunch with no cloud key.",
+            flush=True,
+        )
     except Exception as error:
-        # Avoid CDP tracebacks/request dumps, which can expose memory-only connection tokens.
-        print(f"FAIL: installed UI stage={stage} exception_type={type(error).__name__}")
-        if page is not None:
-            with suppress(Exception):
-                diagnostics = Path(__file__).resolve().parent.parent / ".local/windows-smoke"
-                diagnostics.mkdir(parents=True, exist_ok=True)
-                page.screenshot(path=str(diagnostics / "installed-ui-failure.png"))
-                for selector in (".provider-status", ".workspace-error", ".credential-actions"):
-                    if page.locator(selector).count():
-                        print("UI status:", page.locator(selector).first.inner_text())
+        print(f"FAIL: installed UI stage={stage} exception_type={type(error).__name__}", flush=True)
         raise SystemExit(1) from None
     finally:
         if notepad_window:

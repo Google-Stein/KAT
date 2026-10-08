@@ -23,7 +23,7 @@ jobs:
           $installer = (Get-ChildItem .local/diagnostic-installer -Filter '*.exe').FullName
           $install = Join-Path (Get-Location).Path '.local/diagnostic-install'
           Start-Process $installer -ArgumentList "/S /D=$install" -Wait
-          & core/.venv/Scripts/python.exe scripts/smoke-ui-accessibility.py --executable "$install/kat-desktop.exe"
+          & core/.venv/Scripts/python.exe scripts/smoke-installed-ui.py --executable "$install/kat-desktop.exe" --credentials-only
           if ($LASTEXITCODE -ne 0) { throw 'CDP attachment diagnostic failed.' }
       - name: Native diagnostic evidence
         if: always()
