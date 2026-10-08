@@ -92,3 +92,42 @@ available model names and current tool support, never secret values. A configure
 local route can still fail connectivity; Settings probes distinguish a stopped
 backend from an uninstalled model. Schema migration 2 adds its nonsecret endpoint
 while preserving provider/model/history/permissions and backing up version 1.
+
+## Explicit memory / working context (0.3)
+
+Migration 3 adds projects, structured memory items, immutable revision snapshots,
+usage links and external-content SQLite FTS5. Sessions store an optional stable
+project ID. Existing data upgrades through the same backed-up atomic migration.
+`memory_schemas`, `memory_store`, `memory_retrieval` and `memory_api` separate
+contracts, ownership, retrieval and HTTP concerns; the shared conversation service
+chooses memory eligibility before transport. Memory is not Ollama-owned storage.
+
+For each enabled local user turn, retrieve once from confirmed/current/unexpired
+records, personal plus the active project. Future-effective, superseded, disputed
+and wrong-project records are excluded. Tokenize at most 12 meaningful query words,
+quote them as literal FTS terms, read at most 50 ranked candidates and require two
+matching words (one for a single-keyword query), with at least 25% query coverage.
+Pins and importance rank eligible results; they never force relevance. Insert
+at most four complete records within a 4,000-character serialized JSON budget.
+There are no embeddings, quotas filled with weak results or full-table Python reads.
+
+`working_context` marks the bounded JSON as UNTRUSTED DATA in a separate user-role
+data envelope immediately before the latest owner request, outside system
+instructions. One snapshot stays in the active loop; live tool responses retain
+their proper associations. OpenAI does not retrieve and its adapter independently
+ignores any memory argument. Provider failures never switch routes. Memory context
+is not persisted as a chat/tool message or fed to future cloud requests. Replies
+are ordinary transcript data and may themselves mention remembered information.
+
+Usage stores IDs, inserted revision, session, assistant message, local provider
+and timestamp. Inspection resolves that revision, so an edit never rewrites prior
+evidence; after Forget it shows an identifier-only forgotten marker. Provenance
+stores source IDs/role, never copied source text. Missing sources are unavailable.
+The UI offers a separate Memory workspace, review forms and response inspectors.
+
+Authenticated endpoints add `/projects` (GET/POST), `/sessions/{id}/scope` (PUT),
+`/memory/settings` (PUT), `/memories` (GET/POST with bounded search/filter/pagination),
+`/memories/{id}` (GET/PUT), `/{id}/status`, `/{id}/supersede`, `/{id}/forget` (POST),
+`/{id}/revisions`, `/{id}/usage` and `/sessions/{id}/memory-usage` (GET). All retain
+Core's global bearer authentication. `MemoryStore.rebuild()` reconstructs FTS from
+authoritative current records; test recovery before restoring a database.

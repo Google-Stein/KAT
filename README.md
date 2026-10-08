@@ -2,8 +2,34 @@
 
 A local-first Windows AI assistant foundation: persistent text chat, a local authenticated Core, a typed desktop interface, and approval-controlled tools.
 
-This release supports explicit OpenAI or local Ollama conversation, session history, local time, and opening registered applications. It does not include voice, autonomous background work, connected services, browser automation, or arbitrary shell execution. See [product scope](docs/PRODUCT.md), [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md), [decisions](docs/DECISIONS.md), and [roadmap](docs/ROADMAP.md).
+This release supports explicit OpenAI or local Ollama conversation, session history, explicit personal/project memory, local time, and opening registered applications. It does not include voice, autonomous background work, connected services, browser automation, or arbitrary shell execution. See [product scope](docs/PRODUCT.md), [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md), [decisions](docs/DECISIONS.md), and [roadmap](docs/ROADMAP.md).
 
+
+## Explicit memory (0.3)
+
+Open **Memory → Add memory**, or choose **Remember** beneath a user/assistant
+message. Review the wording, kind and scope, then **Confirm & save memory**.
+Typing “remember” in chat alone never creates a record. No model is needed to save.
+
+Retrieval starts **off**. Enable **local memory retrieval** in Memory, select
+**Local · Ollama**, then ask a related question in a new conversation.
+For example, save “KAT should prefer local models when practical.”, restart KAT,
+and ask “Do I prefer local or cloud models for KAT?” The response's expandable
+**Memories used** lists the records and revisions inserted into that turn.
+
+Memory supports search, project scopes, edits/revisions, pins, explicit
+supersession, outdated/review status, source links, where-used links and forgetting.
+Create minimal project scopes in Memory and select one in a conversation.
+FTS5 lexical retrieval uses up to four relevant whole records within a 4,000-character
+serialized budget; there are no embeddings and unrelated queries may return zero.
+
+Memory is local SQLite storage, **not encrypted by KAT**. Never store credentials
+or highly sensitive information. OpenAI receives no memory records; its ordinary
+selected chat history may already contain the same information. Forget removes
+current/revision/search wording, **not original transcripts or older backups**.
+No automatic extraction, planning, scheduling or autonomy was added.
+See [validation](docs/VALIDATION.md) for actual Windows/local-model results and
+[the approved design](docs/MEMORY_DESIGN_PROPOSAL.md) for future boundaries.
 
 ## Installed application and local inference
 

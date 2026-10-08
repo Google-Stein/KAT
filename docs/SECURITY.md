@@ -71,3 +71,33 @@ owner-controlled local backend to report metadata honestly; it cannot sandbox an
 independently configured inference server or stop a malicious same-user service
 from transmitting data. Native local outputs have the same untrusted status as
 OpenAI outputs. Model prose is never parsed into executable actions.
+
+## Explicit memory boundary (0.3)
+
+Only owner-confirmed entry/selection creates memory; retrieval defaults off and
+only normal sensitivity is accepted. Conservative deterministic patterns reject
+identifiable API keys, bearer tokens, private PEM keys and obvious password/token
+assignments. This is not exhaustive secret detection or an encrypted vault. Never
+save highly sensitive data, even if a pattern fails to recognize it. Scope changes
+require a new explicit item; ordinary edits cannot broaden project evidence into
+personal scope. All memory APIs require the same authenticated local connection.
+
+Stored procedures remain untrusted evidence. Tests simulate a model obeying
+poisoned memory: unknown shell tools and PowerShell IDs are rejected, and even an
+allowlisted application remains pending approval. No new execution capability,
+permission elevation, provider change or autonomous action comes from memory.
+
+OpenAI retrieves zero records, serializes no memory-record payload and records
+no usage. Local failure has no cloud fallback. This does not redact ordinary
+transcript history or remembered information in a prior assistant reply; those
+can leave the device when the owner explicitly selects OpenAI. The loopback
+backend trust limitations above also apply to injected memory.
+
+Edits preserve private revisions until Forget. Forget deletes current content,
+all revisions and FTS search structures; search is rebuilt to discard old postings.
+SQLite secure deletion is enabled for active database cells. Provenance copies
+no evidence text. Operational audit/usage retain only safe IDs/categories, not
+forgotten wording. This is logical removal from the memory system, not forensic
+erasure of WAL/filesystem snapshots, older backups or original transcripts.
+Forgetting cannot revoke context already supplied to an in-progress model run;
+its later usage contains IDs only if the record was forgotten in the meantime.

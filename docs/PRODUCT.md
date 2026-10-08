@@ -15,12 +15,12 @@ Conversation history, settings, approval state, and audit events survive restart
 - Keep the chat interface calm, readable, and keyboard accessible.
 - Show failures as actionable errors; never substitute a fabricated model reply.
 - Show the requested action and validated arguments before approval.
-- Remember sessions locally without inventing a separate memory system.
+- Keep transcripts separate from explicitly confirmed personal/project memory.
 - Keep permission decisions under the owner's control.
 
 ## Explicit exclusions
 
-Voice, wake-word detection, background autonomy, scheduling, email/calendar integrations, browser automation, arbitrary shell access, destructive tools, and semantic long-term memory are excluded. SQLite conversation history is the persistence layer for this slice.
+Voice, wake-word detection, background autonomy, scheduling, email/calendar integrations, browser automation, arbitrary shell access, destructive tools, automatic memory extraction, embeddings and cloud memory injection are excluded. Explicit owner-confirmed memory is approved for 0.3.
 
 ## Acceptance criteria
 
@@ -28,4 +28,23 @@ The desktop connects to an authenticated local Core; explicit local or OpenAI co
 
 ## Approved release sequence
 
-The validated 0.1 foundation is followed by 0.1.1 installed-application readiness, secure credential storage and better provider errors. Release 0.2 adds local AI inference with OpenAI optional. Then implementation stops for owner review of a memory architecture proposal. Persistent personal intelligence in 0.3+ requires explicit approval at that gate. See [ROADMAP.md](ROADMAP.md) for scope and acceptance criteria. The initial transcript storage remains distinct from personal memory.
+The validated 0.1 foundation is followed by 0.1.1 installed-application readiness, secure credential storage and better provider errors. Release 0.2 adds local AI inference with OpenAI optional. The owner reviewed and approved the bounded 0.3 explicit-memory milestone. Further personal intelligence requires a new product decision. See [ROADMAP.md](ROADMAP.md) for scope and acceptance criteria. The initial transcript storage remains distinct from personal memory.
+
+## Explicit memory in 0.3
+
+Memory retrieval is off by default. Owners may manage records while it is off.
+Add memory or choose Remember on a user/assistant message, review/edit the wording,
+choose a kind and personal/project scope, then explicitly confirm the save. No
+model call, extraction, candidate generation or background work creates memory.
+Facts/preferences, events, project state, commitments and working preferences are
+owner statements, not objective truth or authorization. Commitments schedule nothing.
+
+Enable local retrieval to use relevant confirmed, unexpired memories with Ollama.
+A conversation selects at most one project; personal records remain broadly
+eligible. Other projects are excluded. Unrelated questions can retrieve nothing.
+Memories used shows the exact inserted revision, not an invented explanation.
+Edits preserve history; explicit supersession stops old evidence being retrieved.
+Forget removes all memory wording, revisions and FTS search artifacts, while
+transcripts/backups remain separate. Credentials and highly sensitive categories
+are unsupported; local SQLite memory is not encrypted by KAT. OpenAI gets no
+memory-record payload, but ordinary chat history can contain the same words.

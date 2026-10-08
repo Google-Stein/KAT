@@ -1,15 +1,15 @@
 # Roadmap
 
 The owner-approved sequence is **0.1 → 0.1.1 → 0.2 → STOP / REVIEW → 0.3+**.
-Implementation is now at the deliberate memory review gate. This document separates
+The owner approved bounded explicit memory for 0.3; automatic extraction and autonomy remain deferred. This document separates
 completed capabilities from proposals; later work requires new product decisions.
 
 ```mermaid
 flowchart TD
   Foundation["0.1 — validated foundation ✅"] --> Installed["0.1.1 — installer, secure credentials, provider errors ✅"]
   Installed --> Local["0.2 — real local conversation and approved tools ✅"]
-  Local --> Review["STOP / REVIEW — memory proposal; no memory implemented"]
-  Review -->|"Explicit owner approval"| Intelligence["0.3+ — bounded personal memory"]
+  Local --> Review["STOP / REVIEW — bounded explicit memory approved"]
+  Review -->|"Explicit owner approval"| Intelligence["0.3 — explicit local memory"]
 ```
 
 ## 0.1: Foundation — complete
@@ -55,27 +55,29 @@ GPU lifecycle. No semantic memory, background extraction or automatic routing is
 included. Small final UI work makes the release version and local/cloud route
 visible in chat.
 
-## STOP / REVIEW: Memory architecture proposal — current
+## STOP / REVIEW: Memory architecture — approved for bounded 0.3
 
-Read [MEMORY_DESIGN_PROPOSAL.md](MEMORY_DESIGN_PROPOSAL.md). It recommends explicit,
-owner-confirmed, scoped memory, inspect/edit/forget controls, provenance, safe
-migrations and lexical retrieval before considering local embeddings. Memory is
-excluded from cloud requests in the proposed first slice. No proposed tables,
-retrieval pipeline, embedding model or consolidation code has been implemented.
+The owner's 0.3 directive approves explicit creation, personal/project scopes,
+local-only FTS5 retrieval off by default, provenance, revisions, supersession,
+inspection and forgetting. Cloud transcript handling and backup erasure remain
+separate. [MEMORY_DESIGN_PROPOSAL.md](MEMORY_DESIGN_PROPOSAL.md) distinguishes this
+approved implementation from future ideas.
 
-The owner must approve or revise consent, scopes, cloud policy, erasure semantics
-and sensitive-data policy before implementation. The proposal's existence is not
-approval. Existing saved transcripts remain separate from semantic memory.
+## 0.3: Persistent explicit memory
 
-## After approval: three bounded milestones
+The bounded implementation adds reviewed Add/Remember, editable records and
+revisions, stable project scopes, lexical retrieval, response usage inspectors,
+where-used/source links and removal of current/revision/search wording.
+SQLite is not encrypted by KAT and credentials/highly sensitive memory are refused.
+Release requires green exact-source Core/Desktop/Windows and actual installed
+Ollama create/restart/use/edit/forget validation; evidence is in VALIDATION.md.
 
-1. Explicit remember/edit/forget, provenance and revisions, migration/recovery,
-   inspection UI and clear transcript/backup erasure semantics.
-2. Confirmed-only scoped lexical retrieval with a visible context inspector,
-   abstention, injection tests and no cloud memory transmission.
-3. Evaluate relevance, conflict/expiry handling and resource usage. Add a local
-   embedding adapter only if measured lexical failures justify it and its model
-   download is approved.
+## Next bounded milestone — owner review
+
+Gather real-world memory relevance/abstention and scope feedback, then improve
+explicit memory UX and recovery ergonomics within the existing privacy boundary.
+No automatic extraction, suggestions, embeddings, conflict resolution, planning
+or autonomy is authorized by this release. Those require a new design decision.
 
 ## Later product direction — deferred
 

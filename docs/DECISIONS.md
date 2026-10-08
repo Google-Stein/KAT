@@ -34,7 +34,7 @@
 
 ## ADR 009: Certified Python runtime and Windows release gate
 
-**Accepted.** KAT 0.1.x/0.2 use CPython 3.12.x for local setup, dependency installation, tests and PyInstaller packaging. Core retains a 3.12 language minimum, but newer minor interpreters are not certified until an explicit compatibility decision and Windows validation. CI supplies its selected executable; setup rejects incompatible existing environments. Windows launch, authentication, process ownership and both shutdown paths must pass on the packaged executable before the foundation is called Windows validated. Persistent startup logs expose phases and PIDs without bearer credentials.
+**Accepted.** KAT 0.1.x/0.2/0.3 use CPython 3.12.x for local setup, dependency installation, tests and PyInstaller packaging. Core retains a 3.12 language minimum, but newer minor interpreters are not certified until an explicit compatibility decision and Windows validation. CI supplies its selected executable; setup rejects incompatible existing environments. Windows launch, authentication, process ownership and both shutdown paths must pass on the packaged executable before the foundation is called Windows validated. Persistent startup logs expose phases and PIDs without bearer credentials.
 
 ## ADR 010: Framework build mode and complete Windows process ownership
 
@@ -42,7 +42,7 @@
 
 ## ADR 011: Installed application, local inference, then memory review
 
-**Accepted product direction.** Preserve the validated 0.1 foundation. Prioritize 0.1.1 installation, Windows Credential Manager storage and actionable provider errors; then 0.2 local inference behind the existing runtime abstraction, with OpenAI optional and no silent cloud fallback. After 0.2, stop and present a memory architecture proposal for explicit owner review before implementing 0.3+ personal intelligence. Saved transcripts do not satisfy or bypass that review. ADR 013 records the implemented runtime choice; the memory proposal now awaits owner review. Unrelated major capabilities remain outside this sequence. Scope and acceptance criteria are recorded in [ROADMAP.md](ROADMAP.md).
+**Accepted product direction.** Preserve the validated 0.1 foundation. Prioritize 0.1.1 installation, Windows Credential Manager storage and actionable provider errors; then 0.2 local inference behind the existing runtime abstraction, with OpenAI optional and no silent cloud fallback. After 0.2, stop and present a memory architecture proposal for explicit owner review before implementing 0.3+ personal intelligence. Saved transcripts do not satisfy or bypass that review. ADR 013 records the implemented runtime choice; the owner has now approved the bounded 0.3 scope in ADRs 018–022. Unrelated major capabilities remain outside this sequence. Scope and acceptance criteria are recorded in [ROADMAP.md](ROADMAP.md).
 
 ## ADR 012: Native Windows provider key entry
 
@@ -80,7 +80,7 @@ SQLite backup API (including committed WAL), and one transaction for DDL/data/ve
 updates. A failed step rolls back; an unknown newer schema fails closed. Preserve
 existing OpenAI selection and transcripts during the local-provider upgrade.
 Backups and live data remain under the same private account boundary and never
-enter source control. Search/semantic-memory schema changes remain unimplemented.
+enter source control. Migration 3 implements the explicitly approved memory schema in ADR 018.
 
 ## ADR 015: Production accessibility for installed-app acceptance
 
@@ -94,8 +94,8 @@ GPU performance and live OpenAI accounts remain separately identified validation
 
 ## ADR 016: Memory proposal requires product review
 
-The current release contains transcripts and ordered migrations, not personal
-semantic memory. Stop after the validated local-model milestone and bounded UI
+**Historical gate, satisfied by the owner’s explicit 0.3 directive.** At 0.2 the
+release contained transcripts and ordered migrations, not personal memory. Stop after the validated local-model milestone and bounded UI
 polish. [MEMORY_DESIGN_PROPOSAL.md](MEMORY_DESIGN_PROPOSAL.md) recommends explicit
 owner confirmation, scoped provenance, inspect/edit/forget, lexical retrieval
 before vectors, local processing and no cloud memory context in the first slice.
@@ -123,3 +123,44 @@ heuristic, provider-specific workaround or database migration is introduced.
 Regression tests reproduce the old stale-time answer on both wire protocols and
 cover fresh time results and repeated Notepad/Calculator approvals. Actual installed
 Ollama validation separately tests model selection, execution and window creation.
+
+## ADR 018: Explicit structured memory and immutable revisions
+
+**Accepted for 0.3.** Owner entry or reviewed conversation selection only. Store
+kind/scope/status/origin/normal sensitivity, dates, importance/pin, provenance
+references and revision in authoritative items. Keep immutable revision snapshots
+for inspection and exact usage evidence. Require expected revision on edits/status
+changes to prevent silent lost updates. Supersession is explicit, same-scope and
+never inferred from repetition. Schema 3 uses the existing backed-up migration.
+
+## ADR 019: Bounded FTS5 retrieval with abstention
+
+**Accepted.** Structured eligibility plus safely quoted literal FTS terms; no
+embeddings/services. Maximum 12 query terms, 50 candidates, four whole records and
+4,000 serialized characters. Require meaningful overlap and 25% query coverage;
+pins only rank relevant records. Zero is valid. FTS is rebuildable from items.
+
+## ADR 020: Local-only, untrusted memory context
+
+**Accepted.** Retrieval off by default; manage while off. Shared conversation
+policy retrieves once per local turn and supplies data outside privileged system
+instructions. Transport adapters retain current live tool results. OpenAI performs
+no retrieval, receives no memory payload and records no usage. Normal chat history
+is still sent when explicitly selected; this supersedes the proposal to block a
+cloud switch merely because transcript wording overlaps a memory source. No fallback.
+
+## ADR 021: Forget wording, keep safe references
+
+**Accepted.** Delete item, all revision content and derived FTS artifacts; rebuild
+the index and enable SQLite secure deletion. Never copy memory wording into audit
+or usage. Keep identifier-only historical usage, with a forgotten marker. Original
+transcripts and old backups are separate; physical erasure and encrypted sensitive
+storage are not claimed. No provenance evidence text is duplicated.
+
+## ADR 022: Minimal stable project scopes
+
+**Accepted.** A project is ID/name/created/updated only; a session optionally selects
+one project. Relevant personal plus that project are eligible. Wrong-project
+records are excluded. Scope is immutable on an item; changing it means a new
+explicit entry, preventing an ordinary edit from broadening project privacy.
+No tasks, planner or project management engine is introduced.

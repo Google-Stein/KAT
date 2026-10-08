@@ -357,10 +357,169 @@ def main() -> None:
         assert rows(
             "SELECT id FROM messages WHERE session_id=? AND content='Hello, KAT.'", (session_id,)
         )
-        close()
         print(
             "PASS: installed local routing, real conversation and audit "
             "survive close/relaunch with no cloud key.",
+            flush=True,
+        )
+
+        def fresh_conversation() -> str:
+            before = {r["id"] for r in rows("SELECT id FROM sessions")}
+            control = next(
+                c
+                for c in window.descendants(control_type="Button")
+                if c.window_text().startswith("New conversation")
+            )
+            control.click_input()
+            return wait_for(
+                lambda: [r for r in rows("SELECT id FROM sessions") if r["id"] not in before]
+            )[0]["id"]
+
+        def inspect_memory(text: str) -> None:
+            button("Memory").click_input()
+            button("Inspect memory: " + text).click_input()
+
+        local_preference = "KAT should prefer local models when practical."
+        cloud_preference = "KAT should prefer cloud models when practical."
+        question = "Do I prefer local or cloud models for KAT?"
+        stage = "memory-explicit-create-and-enable"
+        button("Memory").click_input()
+        assert (
+            json.loads(rows("SELECT value FROM settings WHERE id=1")[0]["value"])["memory_enabled"]
+            is False
+        )
+        checkbox = window.child_window(
+            title="Enable local memory retrieval", control_type="CheckBox", visible_only=False
+        )
+        checkbox.wait("exists enabled", timeout=20)
+        reveal(checkbox)
+        checkbox.click_input()
+        wait_for(
+            lambda: json.loads(rows("SELECT value FROM settings WHERE id=1")[0]["value"])[
+                "memory_enabled"
+            ]
+        )
+        button("Add memory").click_input()
+        wording = window.child_window(title="Memory wording", control_type="Edit")
+        wording.wait("visible enabled", timeout=20)
+        wording.type_keys(local_preference, with_spaces=True)
+        assert not rows("SELECT id FROM memory_items WHERE content=?", (local_preference,))
+        button("Confirm & save memory").click_input()
+        memory_id = wait_for(
+            lambda: rows("SELECT id FROM memory_items WHERE content=?", (local_preference,))
+        )[0]["id"]
+        stage = "memory-close-and-relaunch"
+        close()
+        launch()
+        assert (
+            json.loads(rows("SELECT value FROM settings WHERE id=1")[0]["value"])["memory_enabled"]
+            is True
+        )
+        assert rows("SELECT id FROM memory_items WHERE id=?", (memory_id,))
+        session_id = fresh_conversation()
+        stage = "memory-real-local-answer-and-inspector"
+        send(question)
+        used = rows("SELECT * FROM memory_usage WHERE session_id=?", (session_id,))
+        assert len(used) == 1 and used[0]["memory_id"] == memory_id and used[0]["revision"] == 1
+        answer = rows(
+            "SELECT content FROM messages WHERE id=?", (used[0]["assistant_message_id"],)
+        )[0]["content"].lower()
+        assert "local" in answer and any(
+            word in answer for word in ("prefer", "practical", "favor", "priorit")
+        ), "Real model did not reflect the local preference"
+        summary = wait_for(
+            lambda: next(
+                (c for c in window.descendants() if c.window_text() == "Memories used · 1"), None
+            )
+        )
+        summary.click_input()
+        wait_for(lambda: visible_text(local_preference))
+        print(
+            "PASS: installed explicit memory survives restart, informs a new local "
+            "conversation and appears in the exact-revision inspector.",
+            flush=True,
+        )
+
+        stage = "memory-owner-edit-current-revision"
+        inspect_memory(local_preference)
+        wait_for(lambda: visible_text("Entered and confirmed by you in Memory."))
+        button("Edit memory").click_input()
+        wording = window.child_window(title="Memory wording", control_type="Edit")
+        wording.wait("visible enabled", timeout=20)
+        wording.type_keys("^a" + cloud_preference, with_spaces=True)
+        button("Save revision").click_input()
+        wait_for(
+            lambda: rows("SELECT id FROM memory_items WHERE id=? AND revision=2", (memory_id,))
+        )
+        session_id = fresh_conversation()
+        send(question)
+        used = rows("SELECT * FROM memory_usage WHERE session_id=?", (session_id,))
+        assert len(used) == 1 and used[0]["memory_id"] == memory_id and used[0]["revision"] == 2
+        answer = rows(
+            "SELECT content FROM messages WHERE id=?", (used[0]["assistant_message_id"],)
+        )[0]["content"].lower()
+        assert "cloud" in answer and any(
+            word in answer for word in ("prefer", "practical", "favor", "priorit")
+        ), "Real model did not reflect the revised cloud preference"
+        assert (
+            len(rows("SELECT revision FROM memory_revisions WHERE memory_id=?", (memory_id,))) == 2
+        )
+        print(
+            "PASS: installed owner edit creates a revision; a new real local response "
+            "uses only the current revision.",
+            flush=True,
+        )
+
+        stage = "memory-forget-and-new-conversation"
+        inspect_memory(cloud_preference)
+        button("Forget memory").click_input()
+        wait_for(
+            lambda: visible_text(
+                "Forgetting this memory does not automatically delete the original "
+                "conversation or older database backups that may contain the original text."
+            )
+        )
+        button("Confirm forget").click_input()
+        wait_for(lambda: not rows("SELECT id FROM memory_items WHERE id=?", (memory_id,)))
+        assert not rows("SELECT revision FROM memory_revisions WHERE memory_id=?", (memory_id,))
+        assert not rows("SELECT rowid FROM memory_fts WHERE memory_fts MATCH 'prefer'")
+        session_id = fresh_conversation()
+        send(question)
+        assert not rows("SELECT * FROM memory_usage WHERE session_id=?", (session_id,))
+        assert not visible_text("Memories used · 1")
+        stage = "memory-explicit-conversation-selection"
+        remember = next(
+            control
+            for control in window.descendants(control_type="Button")
+            if control.window_text() == "Remember"
+        )
+        with suppress(Exception):
+            remember.iface_scroll_item.ScrollIntoView()
+        reveal(remember)
+        remember.click_input()
+        wording = window.child_window(title="Memory wording", control_type="Edit")
+        wording.wait("visible enabled", timeout=20)
+        selected_wording = "KAT memory source came from an explicitly reviewed conversation."
+        wording.type_keys("^a" + selected_wording, with_spaces=True)
+        button("Confirm & save memory").click_input()
+        selected_memory = wait_for(
+            lambda: rows("SELECT * FROM memory_items WHERE content=?", (selected_wording,))
+        )[0]
+        assert selected_memory["origin"] == "conversation_selection"
+        assert selected_memory["source_session_id"] == session_id
+        assert selected_memory["source_role"] == "user"
+        inspect_memory(selected_wording)
+        button("View source conversation").click_input()
+        composer()
+        print(
+            "PASS: installed Remember requires review and retains a navigable "
+            "selected-message source.",
+            flush=True,
+        )
+        close()
+        print(
+            "PASS: installed Forget removes wording/revisions/FTS; a new local conversation "
+            "records zero memory usage. Original transcripts remain separate.",
             flush=True,
         )
     except Exception as error:

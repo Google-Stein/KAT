@@ -1,5 +1,27 @@
 # Validation record
 
+## KAT 0.3 implementation gates — Windows pending
+
+The owner approved bounded explicit memory. The current implementation has **174
+passing Core/integration tests** (148 prior checks plus 26 memory checks) and **32
+passing frontend tests**. Ruff, formatting, strict mypy, TypeScript, ESLint and the
+production frontend build passed locally. Real CLI startup/authentication/keyless
+errors/restart persistence/shutdown passed. Native unit/packaging checks are being
+completed and actual Windows/installed Ollama validation remains a release gate.
+No v0.3 tag or release is authorized by these Linux-only results.
+
+`uv run --project core python scripts/benchmark-memory.py` measured 5,000 synthetic
+records over 100 iterations on Linux: a matching and an unrelated query combined
+had **0.603 ms median / 0.873 ms p95**, with at most 50 candidates read per query.
+These are retrieval measurements, not model/GPU latency. The installed Windows
+acceptance helper now creates/enables memory through reviewed UI, restarts KAT,
+uses it in a new real Ollama conversation, inspects exact revision use, edits,
+forgets, verifies no subsequent usage and tests reviewed conversation selection.
+Results will be recorded after the workflow actually executes.
+
+The sections below preserve earlier release evidence; they do not establish 0.3
+validation. Live OpenAI billing and owner RTX 4090/model quality remain manual.
+
 Initial Linux validation ran in the Codex cloud workspace on 2026-10-07. The corrected packaged Windows runtime passed GitHub Actions on 2026-10-08; see the release-gate evidence below. No live OpenAI call was made: no provider key was present. The initial cloud network policy also denied HTTPS CONNECT to `api.openai.com`; GitHub Actions log access was subsequently configured and verified. SDK tests replace HTTP transport, not production permission/storage/orchestration logic.
 
 ## Toolchain and installation
