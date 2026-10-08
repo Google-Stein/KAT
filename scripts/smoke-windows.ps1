@@ -26,6 +26,30 @@ function Get-StartupEvidence($process) {
 }
 function Fail-Kat([string]$Category, [string]$Detail) { throw "[$Category] $Detail" }
 
+function Test-KatTransientProbeError([Exception]$ProbeException) {
+  while ($ProbeException) {
+    if ($ProbeException -is [System.Net.Http.HttpRequestException] -or
+        $ProbeException -is [OperationCanceledException] -or $ProbeException -is [TimeoutException]) { return $true }
+    $ProbeException = $ProbeException.InnerException
+  }
+  return $false
+}
+
+function Get-KatUnauthenticatedStatus {
+  $handler = [System.Net.Http.HttpClientHandler]::new()
+  $handler.UseProxy = $false
+  $client = [System.Net.Http.HttpClient]::new($handler)
+  $client.Timeout = [TimeSpan]::FromSeconds(3)
+  try {
+    try { $response = $client.GetAsync("http://127.0.0.1:42800/health").GetAwaiter().GetResult() }
+    catch {
+      if (Test-KatTransientProbeError $_.Exception) { return 0 }
+      Fail-Kat 'authenticated-readiness' 'Independent unauthenticated health probe failed.'
+    }
+    try { return [int]$response.StatusCode } finally { $response.Dispose() }
+  } finally { $client.Dispose() }
+}
+
 function Wait-KatReady($process) {
   $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
   do {
@@ -59,16 +83,16 @@ function Wait-KatReady($process) {
       }
       # Native readiness is an actual bearer-authenticated HTTP check. Also assert
       # independently that the same owned service rejects an unauthenticated caller.
-      $handler = [System.Net.Http.HttpClientHandler]::new()
-      $handler.UseProxy = $false
-      $client = [System.Net.Http.HttpClient]::new($handler)
-      $client.Timeout = [TimeSpan]::FromSeconds(3)
-      try {
-        $response = $client.GetAsync("http://127.0.0.1:42800/health").GetAwaiter().GetResult()
-        try {
-          if ([int]$response.StatusCode -ne 401) { Fail-Kat "authenticated-readiness" "Owned Core did not reject unauthenticated health (HTTP $([int]$response.StatusCode))." }
-        } finally { $response.Dispose() }
-      } finally { $client.Dispose() }
+      # Do not probe while WebView2 initialization has yet to create its window.
+      # Keep the original startup deadline and 3-second request timeout. Transient
+      # probe cancellation is pending readiness, not an unclassified fatal exception.
+      if ($process.MainWindowHandle -eq 0) { continue }
+      $status = Get-KatUnauthenticatedStatus
+      if ($status -eq 0) {
+        Write-Output 'Readiness: independent health probe pending within existing startup deadline.'
+        continue
+      }
+      if ($status -ne 401) { Fail-Kat "authenticated-readiness" "Owned Core did not reject unauthenticated health (HTTP $status)." }
       if ($process.MainWindowHandle -ne 0) {
         Write-Output "Evidence: desktop_pid=$($process.Id), window=$($process.MainWindowHandle), core_pid=$reportedCorePid, authenticated health passed, unauthenticated health=401, owned listener=42800."
         return
@@ -77,7 +101,7 @@ function Wait-KatReady($process) {
   } while ((Get-Date) -lt $deadline)
   if ($process.MainWindowHandle -eq 0) { Fail-Kat "window-creation" "Desktop is alive but no main window appeared within $TimeoutSeconds seconds." }
   if ($script:children.Count -eq 0) { Fail-Kat "core-child-startup" "Window exists but there is no owned Core child." }
-  Fail-Kat "authenticated-readiness" "Window and owned child exist, but native authenticated readiness evidence is absent."
+  Fail-Kat "authenticated-readiness" "Window and owned child exist, but native authenticated readiness or independent unauthenticated rejection is incomplete within $TimeoutSeconds seconds."
 }
 
 function Assert-KatStopped($owned) {

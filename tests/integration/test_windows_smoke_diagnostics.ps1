@@ -55,6 +55,28 @@ $mockChildren = @([pscustomobject]@{Name='kat-core.exe'; ProcessId=11})
 Assert-Failure 'authenticated-readiness'
 $process.MainWindowHandle = 0
 Assert-Failure 'window-creation'
+$process.MainWindowHandle = 10
+$mockEvidence = @('stage=core_ready core_pid=11 authenticated=true port=42800')
+$mockListeners = @([pscustomobject]@{OwningProcess=11})
+$process.MainWindowHandle = 0
+function Get-KatUnauthenticatedStatus { throw 'Probe must wait for window creation.' }
+Assert-Failure 'window-creation'
+$process.MainWindowHandle = 10
+$probeAttempts = 0
+function Get-KatUnauthenticatedStatus { $script:probeAttempts++; if ($script:probeAttempts -eq 1) { 0 } else { 401 } }
+$TimeoutSeconds = 3
+Wait-KatReady $process
+if ($probeAttempts -ne 2) { throw 'Transient probe was not retried before readiness.' }
+Write-Output 'PASS diagnostic: transient independent probe retried within original deadline'
+$TimeoutSeconds = 0
+function Get-KatUnauthenticatedStatus { 0 }
+Assert-Failure 'authenticated-readiness'
+function Get-KatUnauthenticatedStatus { 200 }
+Assert-Failure 'authenticated-readiness'
+$wrapped = [InvalidOperationException]::new('wrapper', [TimeoutException]::new('synthetic timeout'))
+if (-not (Test-KatTransientProbeError $wrapped)) { throw 'Wrapped timeout not recognized.' }
+if (Test-KatTransientProbeError ([InvalidOperationException]::new('unexpected'))) { throw 'Unexpected error was hidden as transient.' }
+Write-Output 'PASS diagnostic: transient probe errors classified without hiding unrelated failures'
 $mockListeners = @()
 Assert-KatStopped @()
 Write-Output 'PASS diagnostic: clean lifecycle returns'
