@@ -35,7 +35,7 @@ def main() -> None:
         raise SystemExit("Synthetic credential test requires a disposable Windows CI account.")
     import win32cred
     import win32gui
-    from pywinauto import Application
+    from pywinauto import Application, mouse
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--executable", type=Path, required=True)
@@ -72,11 +72,27 @@ def main() -> None:
         finally:
             connection.close()
 
+    def reveal(control: Any) -> None:
+        # Chromium does not expose ScrollItem on every HTML form control. Scroll
+        # the actual Settings pane with normal mouse input when it is offscreen.
+        if control.is_visible():
+            return
+        rect = window.rectangle()
+        coords = (rect.left + rect.width() * 3 // 4, rect.top + rect.height() // 2)
+        mouse.scroll(coords=coords, wheel_dist=40)
+        for _ in range(40):
+            if control.is_visible():
+                return
+            mouse.scroll(coords=coords, wheel_dist=-2)
+            time.sleep(0.1)
+        raise RuntimeError("Settings control could not be scrolled into view")
+
     def button(name: str) -> Any:
         control = window.child_window(title=name, control_type="Button")
         control.wait("exists", timeout=20)
         with suppress(Exception):
             control.wrapper_object().iface_scroll_item.ScrollIntoView()
+        reveal(control)
         control.wait("visible enabled", timeout=20)
         return control
 
@@ -149,32 +165,16 @@ def main() -> None:
             return
 
         stage = "local-provider-selection"
-        print(
-            "UI selectors: "
-            + repr(
-                [
-                    (item.element_info.control_type, item.window_text())
-                    for item in window.descendants()
-                    if item.element_info.control_type in {"ComboBox", "Edit"}
-                ]
-            ),
-            flush=True,
-        )
-        # Chromium exposes select names through the selected option on Windows.
-        # The provider is the first select in the Settings form.
-        provider = window.descendants(control_type="ComboBox")[0]
+        provider = window.child_window(title="Provider", control_type="ComboBox")
+        provider.wait("exists enabled", timeout=20)
+        reveal(provider)
         provider.set_focus()
         provider.type_keys("{HOME}{DOWN}{ENTER}")
         stage = "local-model-selection"
         # An input with a datalist is exposed as a ComboBox rather than Edit.
-        model = wait_for(
-            lambda: (
-                controls[1]
-                if len(controls := window.descendants(control_type="ComboBox")) >= 2
-                else None
-            )
-        )
-        assert model.is_enabled()
+        model = window.child_window(title="Model", control_type="ComboBox")
+        model.wait("exists enabled", timeout=20)
+        reveal(model)
         model.set_focus()
         model.type_keys("^a" + args.model, with_spaces=True)
         wait_for(lambda: visible_text("Local backend and selected model are ready."), 30)
