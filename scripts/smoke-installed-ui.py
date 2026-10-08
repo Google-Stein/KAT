@@ -11,6 +11,7 @@ import os
 import sqlite3
 import subprocess
 import time
+import traceback
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
@@ -586,6 +587,24 @@ def main() -> None:
         )
     except Exception as error:
         print(f"FAIL: installed UI stage={stage} exception_type={type(error).__name__}", flush=True)
+        # Keep diagnostics actionable without printing exception messages, code
+        # lines, local variables, transcript contents or credential dialog text.
+        print(
+            json.dumps(
+                {
+                    "test": "installed-ui-failure-stack",
+                    "frames": [
+                        {
+                            "file": Path(frame.filename).name,
+                            "function": frame.name,
+                            "line": frame.lineno,
+                        }
+                        for frame in traceback.extract_tb(error.__traceback__)
+                    ],
+                }
+            ),
+            flush=True,
+        )
         raise SystemExit(1) from None
     finally:
         for hwnd in application_windows:
