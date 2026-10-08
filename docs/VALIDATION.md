@@ -335,7 +335,7 @@ result. Release installers remain unsigned, automatic updates are absent, and
 interactive upgrade UX is not certified. Local SQLite/backups are not encrypted
 by KAT. No semantic memory has been implemented; review the memory proposal first.
 
-## 0.2.1 stale-tool-context hotfix — Windows gate pending
+## 0.2.1 stale-tool-context hotfix — Windows gate passed
 
 The owner reported a repeated 09:54 answer with no second `get_local_time` request.
 The new deterministic HTTP-protocol regression reproduced that stale answer on
@@ -401,3 +401,46 @@ turn structure without exposing stale timestamps, status or launch results.
 [Core-only run 37809113626](https://github.com/Google-Stein/KAT/actions/runs/37809113626)
 passed the real local sequence; earlier focused run 37808749889 did not produce
 a fresh time result. These are recorded distinctly from the full release gate.
+
+### Full current-source Windows result
+
+[Run **37810325045**](https://github.com/Google-Stein/KAT/actions/runs/37810325045)
+finished successfully at **2026-10-08 16:47:27 UTC (10:47:27 MDT)**, source
+**`7ca54193dda9b3a81e085bec2ca7531fc631a691`**. **Core, desktop and Windows
+all passed.** The final documentation commit must pass those gates again on its
+exact source before tagging/publishing; release notes identify that final run.
+
+| Actual command/check | Result |
+| --- | --- |
+| `uv run --directory core pytest tests ../tests/integration -q` | **148 passed** in cloud and Linux CI; OpenAI SDK/Ollama deterministic wire regressions passed |
+| Core and scripts Ruff / format / strict mypy | Passed; all 16 source modules typed |
+| `python scripts/version.py --check` | Passed; root/Python/npm/Cargo/Tauri all **0.2.1** |
+| Standalone and rebuilt Linux packaged `scripts/smoke-core.py` | Actual authentication, keyless error, persistence, restart and shutdown passed |
+| Frontend tests / ESLint / Prettier / TypeScript / Vite | **26 tests passed**, all checks/build passed |
+| Linux native tests / fmt / full Clippy | **20 passed, 4 deliberate ignores**; formatting and warnings-denied Clippy passed |
+| Linux `cargo test ... -- --ignored --skip sleeper_fixture --test-threads=1` | All **3 explicit native service integrations passed** against rebuilt current-source Core |
+| Windows-target all-targets Clippy in cloud | Passed with warnings denied; actual Windows execution separately below |
+| `scripts/build-windows.ps1 -PythonExecutable <setup-python executable>` | Python **3.12.10 x64**, current-source desktop/PyInstaller/NSIS passed; two cached old installers cleared before bundling |
+| `scripts/smoke-windows.ps1` | Window, exact owned packaged Core/listener, authenticated readiness, 401 without bearer, normal/forced close and port release passed |
+| `scripts/smoke-installed-windows.ps1 -LocalInference` | Current-user install into path with spaces, installed lifecycle, persistence, real UI/Ollama and uninstall passed |
+| `scripts/smoke-local.py` with actual Ollama **0.40.1 / Qwen3:1.7b CPU** | Greeting, two identical time requests with newer results, two Notepad requests and two Calculator requests each with fresh approval/execution passed; OpenAI unavailable |
+| Installed production WebView `scripts/smoke-installed-ui.py` | Native credential cancel/save/replace/restart/remove; real local greeting; two fresh time results; two distinct Notepad approval/window pairs; Calculator approval and actual window all passed |
+| Installed close/relaunch/uninstall | Both Notepads and Calculator survived normal KAT close; all five historical tool records retained; provider/model/chat/audit survived relaunch; uninstall retained integrity-checked SQLite |
+| Windows Python unit/integration tests | **147 passed, 1 POSIX execute-bit skip** |
+| Windows packaged `scripts/smoke-core.py --executable .../kat-core.exe` | Actual process authentication/persistence/restart/shutdown passed |
+| Windows native tests | **21 passed, 5 deliberate ignores**, plus all **3 explicit Core integrations passed** |
+| `tests/integration/test_windows_smoke_diagnostics.ps1` | All **13 diagnostics checks passed**; build-script syntax also passed in cloud |
+| Installer / executable / diagnostic uploads | Passed: **11564673804 / 11564808556 / 11565048225** |
+
+The owner's Calculator audit contained no request, establishing a selection failure
+for that attempt. The unchanged fixed `System32/calc.exe` launcher now has separate
+actual Windows window evidence after a genuine local-model request and UI approval.
+Neither allowlisting nor approval was relaxed. Historical tool records and their
+original assistant replies remain stored and displayed; inference receives no old
+result through those records or reply summaries. Active tool-loop results remain
+available immediately. Tests cover automatic time permission decisions and new
+manual application approvals for both providers. No schema/memory changes occurred.
+
+Backend/runtime/weights were explicitly downloaded for disposable CI with upstream
+SHA-256 checks, not bundled with KAT. This certifies the tested CPU model and
+sequences; owner RTX 4090/Qwen3:8b and live OpenAI account tests remain separate.
