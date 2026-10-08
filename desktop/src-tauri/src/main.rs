@@ -81,7 +81,9 @@ fn main() {
                 "desktop_start",
                 "initializing owned Core and window",
             );
-            let source = if !cfg!(feature = "custom-protocol") {
+            // Tauri CLI enables the dependency feature tauri/custom-protocol,
+            // not necessarily our forwarding feature. Query the framework itself.
+            let source = if tauri::is_dev() {
                 let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                     .parent()
                     .and_then(|path| path.parent())
@@ -111,7 +113,7 @@ fn main() {
                         || (url.scheme() == "http"
                             && url.host_str() == Some("tauri.localhost")
                             && url.port().is_none())
-                        || (!cfg!(feature = "custom-protocol")
+                        || (tauri::is_dev()
                             && url.scheme() == "http"
                             && url.host_str() == Some("127.0.0.1")
                             && url.port() == Some(1420))
