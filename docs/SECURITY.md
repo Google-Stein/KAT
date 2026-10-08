@@ -59,3 +59,15 @@ named restricted-permission `.backup-vN-*` sibling containing committed WAL data
 Backups contain personal transcripts: protect them like the original database.
 Restore only while KAT is stopped, preserving the failed original for diagnosis.
 There is no downgrade or automatic destructive recovery.
+
+## Local inference trust boundary
+
+A loopback URL does not alone prove local inference: Ollama can advertise cloud
+models. KAT filters remote/cloud tags and rejects `remote_host`, `remote_model`,
+cloud capabilities and remote manifests before sending conversation context.
+Known cloud-suffixed tags are also rejected. Disable Ollama cloud features
+(`OLLAMA_NO_CLOUD=1` for its server) and use installed local weights. KAT trusts the
+owner-controlled local backend to report metadata honestly; it cannot sandbox an
+independently configured inference server or stop a malicious same-user service
+from transmitting data. Native local outputs have the same untrusted status as
+OpenAI outputs. Model prose is never parsed into executable actions.

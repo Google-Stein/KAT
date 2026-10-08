@@ -13,6 +13,21 @@ from kat_core.schemas import Message, ProviderStatus, SettingsUpdate
 from kat_core.tools import ToolRegistry
 
 
+def require_local_model(info: dict[str, Any], name: str) -> None:
+    if (
+        info.get("remote_host")
+        or info.get("remote_model")
+        or name.lower().endswith((":cloud", "-cloud"))
+        or "cloud" in (info.get("capabilities") or [])
+    ):
+        raise ProviderFailure(ProviderErrorCode.LOCAL_REQUIRED)
+    for manifest in info.get("manifests", []):
+        if isinstance(manifest, dict) and (
+            manifest.get("remote_host") or manifest.get("remote_model")
+        ):
+            raise ProviderFailure(ProviderErrorCode.LOCAL_REQUIRED)
+
+
 class OllamaRuntime:
     def __init__(self, endpoint: str) -> None:
         self.endpoint = local_endpoint(endpoint)
@@ -65,7 +80,11 @@ class OllamaRuntime:
                 {
                     item["name"]
                     for item in items
-                    if isinstance(item, dict) and isinstance(item.get("name"), str)
+                    if isinstance(item, dict)
+                    and isinstance(item.get("name"), str)
+                    and not item.get("remote_host")
+                    and not item.get("remote_model")
+                    and not item["name"].lower().endswith((":cloud", "-cloud"))
                 }
             )[:200]
             installed = settings.model in models or settings.model + ":latest" in models
@@ -77,6 +96,7 @@ class OllamaRuntime:
                     models=models,
                 )
             info = await self.request(client, "POST", "/api/show", {"model": settings.model})
+            require_local_model(info, settings.model)
             capabilities = info.get("capabilities", [])
             tools = isinstance(capabilities, list) and "tools" in capabilities
             return ProviderStatus(
@@ -102,6 +122,7 @@ class OllamaRuntime:
         ]
         async with self.client() as client:
             info = await self.request(client, "POST", "/api/show", {"model": settings.model})
+            require_local_model(info, settings.model)
             capabilities = info.get("capabilities", [])
             if not isinstance(capabilities, list):
                 raise ProviderFailure(ProviderErrorCode.MALFORMED_RESPONSE)

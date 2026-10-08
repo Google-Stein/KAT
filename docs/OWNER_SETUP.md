@@ -7,7 +7,7 @@ The owner directs KAT's product. Agents implement, test, document, and publish c
 ### To use KAT on Windows
 
 1. Download the `kat-windows-installer` artifact and run its NSIS setup for your current Windows account. Launch KAT from the installed shortcut. Portable alternative: download the `kat-windows-executable` artifact from a successful **KAT checks** GitHub Actions run, then extract the whole archive. Keep `kat-desktop.exe` beside the included `binaries/` directory. Alternatively, use the Windows developer/build scripts in README.md.
-2. Launch KAT, open Settings, and choose **Set API key**. The native Windows credential dialog accepts your OpenAI API key and saves it in your own Windows Credential Manager. This requires an OpenAI API account/key with access to the chosen model. The provider key does not enter the React interface or Git repository.
+2. Launch KAT and open Settings. For local use, separately install Ollama and your chosen model (see README), select **Local · Ollama**, refresh status and save. For OpenAI, choose **Set API key**. The native Windows credential dialog accepts your OpenAI API key and saves it in your own Windows Credential Manager. This requires an OpenAI API account/key with access to the chosen model. The provider key does not enter the React interface or Git repository.
 3. Review application-launch approval cards when you ask KAT to open a registered application. You can allow or deny each request.
 
 The Windows key-entry feature is separate from a cloud environment secret. A key saved on your Windows machine is not automatically shared with cloud tasks. Installing Microsoft developer prerequisites is needed only for local source builds; a successful CI artifact contains the packaged Core runtime.

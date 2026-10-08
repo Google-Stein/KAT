@@ -4,11 +4,11 @@ KAT is a persistent, local-first personal AI assistant for Windows. The human ow
 
 ## This release
 
-The first vertical slice is a desktop text conversation backed by a local Python service and an OpenAI model. Users create and revisit sessions, change their model settings, ask for the local time, and request an allowlisted application such as Notepad. Application launch requires an explicit approval. Users can inspect the audit trail and pending requests.
+KAT provides desktop text conversation backed by an authenticated local Python service and an explicitly selected OpenAI or local Ollama model. Users create and revisit sessions, change their model settings, ask for the local time, and request an allowlisted application such as Notepad. Application launch requires an explicit approval. Users can inspect the audit trail and pending requests.
 
-Conversation history, settings, approval state, and audit events survive restarts. The API key comes from configuration outside source control. The desktop controls its own authenticated Core process and reports startup failures.
+Conversation history, settings, approval state, and audit events survive restarts. OpenAI keys come from current-user Windows Credential Manager or optional development environment overrides, never SQLite or React. The desktop controls its own authenticated Core process and reports startup failures.
 
-"Local-first" describes ownership and persistence of data. This initial model adapter sends conversation context and tool descriptions to OpenAI. It does not perform inference locally or promise offline model conversation. The service and stored history remain usable for viewing without a model key.
+"Local-first" describes ownership and persistence of data. The OpenAI adapter sends conversation context and tool descriptions to OpenAI. The Ollama adapter sends them only to an independently installed loopback backend and never falls back to cloud. Offline conversation requires installed local weights and a running local backend. The service and stored history remain usable for viewing without a model key.
 
 ## Interaction principles
 

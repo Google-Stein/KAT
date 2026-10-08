@@ -2,7 +2,56 @@
 
 A local-first Windows AI assistant foundation: persistent text chat, a local authenticated Core, a typed desktop interface, and approval-controlled tools.
 
-This release supports OpenAI-backed conversation, session history, local time, and opening registered applications. It does not include voice, autonomous background work, connected services, browser automation, or arbitrary shell execution. See [product scope](docs/PRODUCT.md), [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md), [decisions](docs/DECISIONS.md), and [roadmap](docs/ROADMAP.md).
+This release supports explicit OpenAI or local Ollama conversation, session history, local time, and opening registered applications. It does not include voice, autonomous background work, connected services, browser automation, or arbitrary shell execution. See [product scope](docs/PRODUCT.md), [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md), [decisions](docs/DECISIONS.md), and [roadmap](docs/ROADMAP.md).
+
+
+## Installed application and local inference
+
+Download an installer from [Releases](https://github.com/Google-Stein/KAT/releases)
+or the `kat-windows-installer` artifact of a successful CI run. NSIS installs for
+your current user; launch KAT from the Windows shortcut. No Python installation
+or developer terminal is required. Uninstall preserves your database and vault
+entry. Remove the saved key through Settings before uninstall if desired.
+
+To run locally, separately install [Ollama](https://ollama.com/download/windows),
+keep its server on loopback, disable its cloud features (`OLLAMA_NO_CLOUD=1` for the Ollama server), and explicitly install a local model:
+
+```powershell
+# Recommended starting point for RTX 4090 / 24 GB VRAM: ~5 GB weights.
+ollama pull qwen3:8b
+# Smaller CPU/CI smoke model, lower quality: ~1.4 GB weights.
+ollama pull qwen3:1.7b
+```
+
+Choose **Local · Ollama** in KAT Settings, select an installed model, refresh status,
+and save. Model discovery distinguishes an unavailable server from missing weights
+and shows whether the model advertises tools. KAT never downloads weights or
+starts/stops Ollama itself. GPU acceleration is Ollama's responsibility; check
+`ollama ps` and its server diagnostics. RTX 4090 performance is not certified by
+CPU CI. Normal KAT installation contains neither backend nor model weights.
+
+Try “Hello, KAT.”, “What time is it?”, then “Open Notepad.” Approve the final action
+through its card. Local failures stay local. To use cloud inference, explicitly
+select OpenAI; its context and tool descriptions leave the device for OpenAI.
+
+The explicit real-backend Core smoke command is:
+
+```powershell
+.\core\.venv\Scripts\python.exe .\scripts\smoke-local.py --model qwen3:1.7b
+```
+
+It requires an already running backend/model and on Windows launches Notepad after
+its test approval. `test-local-windows.ps1` is a disposable CI helper that explicitly
+downloads a checksum-verified runtime (~1.47 GB) and weights (~1.4 GB).
+`smoke-installed-ui.py` uses CDP and synthetic vault data **only in a disposable
+Windows CI account**; production never enables a debugging port. Deterministic
+protocol tests do not count as real inference. See VALIDATION for measured gates.
+
+`VERSION` is the release source; run `python scripts/version.py`, then `--check`.
+Before a schema upgrade, restricted `.backup-vN-*` snapshots preserve committed
+SQLite data including WAL. Stop KAT before manually restoring a backup. Older KAT
+fails closed when opening a newer schema; do not replace the database with an empty
+file to bypass this protection.
 
 ## Repository
 
@@ -22,13 +71,11 @@ Install Python 3.12.x, Node.js 24 LTS (22.12+ is also supported), Rust stable (1
 ```powershell
 git clone https://github.com/Google-Stein/KAT.git
 cd KAT
-Copy-Item .env.example .env
-# Edit .env locally: set OPENAI_API_KEY to your own key. Never commit it.
 .\scripts\setup-windows.ps1
 .\scripts\dev-windows.ps1
 ```
 
-Development starts Vite and Tauri. Tauri launches the Core virtual environment, waits for its authenticated health check, and opens the window. The repository `.env` is explicitly loaded for development. Existing process environment values take precedence. Provider/model changes are available in Settings; keys are configured outside the UI in this version. Restart the desktop after changing the key. `KAT_OPENAI_API_KEY` is a supported alias and takes precedence over `OPENAI_API_KEY`; cloud proxy bindings use this alias because the platform reserves the `OPENAI_` prefix.
+Development starts Vite and Tauri. Tauri launches the Core virtual environment, waits for its authenticated health check, and opens the window. The repository `.env` is explicitly loaded for development. Existing process environment values take precedence. Configure a local model or choose **Set API key** in Settings. Windows-native key entry stores the key in Credential Manager; saving/removing restarts Core automatically. React never handles provider keys. Environment/.env overrides are optional development configuration. `KAT_OPENAI_API_KEY` is a supported alias and takes precedence over `OPENAI_API_KEY`; cloud proxy bindings use this alias because the platform reserves the `OPENAI_` prefix.
 
 If PowerShell blocks local scripts, use the policy approved for your machine; for example, `powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1` runs that single local script without changing the machine policy.
 
@@ -40,7 +87,7 @@ To try the tools, ask "What time is it here?" or "Open Notepad." Review the appl
 .\scripts\build-windows.ps1
 ```
 
-This locks dependency installation, packages Core with PyInstaller, bundles it as a Tauri resource, and builds the desktop/NSIS installer. The release key is supplied via the launched desktop's environment; it is never embedded in the executable. Development `.env` is not bundled. Release builds are currently unsigned.
+This locks dependency installation, packages Core with PyInstaller, bundles it as a Tauri resource, and builds the desktop/NSIS installer. Normal installed launch reads the current user's Windows Credential Manager entry. Keys are never embedded in the executable. Development `.env` is not bundled. Release builds are currently unsigned.
 
 For an executable-only build and startup smoke check:
 
@@ -86,7 +133,7 @@ response.raise_for_status()
 print(response.json())  # contains status/configuration, never the token
 ```
 
-Missing `OPENAI_API_KEY` does not prevent browsing stored sessions/settings. Sending a message returns a clear configuration error until a key is configured. Network failures do not produce fake assistant replies.
+No OpenAI key is needed for local Ollama inference or browsing history/settings. OpenAI conversation requires a configured key. Network failures do not produce fake assistant replies.
 
 ## Automated checks
 
@@ -123,7 +170,10 @@ On Linux, Tauri additionally needs GTK3, WebKitGTK 4.1, an application-indicator
 
 - Standalone Core data defaults to `%LOCALAPPDATA%\KAT` on Windows and `$XDG_DATA_HOME/kat` (normally `~/.local/share/kat`) on Linux. Desktop-managed data uses `%LOCALAPPDATA%\com.kat.assistant` on Windows and `$XDG_DATA_HOME/com.kat.assistant` on Linux. `KAT_DATA_DIR`/`--data-dir` can override standalone storage.
 - SQLite stores sessions, messages, settings, approvals, and audit events. API keys and bearer tokens are excluded. Back up with Core stopped; local data is not encrypted by this version.
-- **Provider not configured:** set `OPENAI_API_KEY` in the development `.env` or desktop process environment, then restart. Settings reports configuration presence, not account validity.
+- **Provider not configured:** select Local/Ollama or save an OpenAI key through the native Settings dialog. Settings reports key presence; a chat checks account validity. Optional environment overrides take precedence over the vault.
+- **Local backend unreachable:** start Ollama on `127.0.0.1:11434` and refresh provider status. Do not expose it to your LAN.
+- **Local model missing:** install the chosen model with `ollama pull MODEL`, then refresh. Downloads are explicit, can be several gigabytes, and are separate from KAT installation.
+- **Local model cannot use tools:** choose a model advertising tool support; Settings identifies chat-only models. Text that looks like a tool call is never executed.
 - **Provider request failed:** confirm key validity, model availability, account quota, and HTTPS access to `api.openai.com`. Check the local audit/error code. Raw provider exceptions are not exposed because they may contain sensitive diagnostics.
 - **Core unavailable:** run the standalone CLI to inspect startup output; confirm dependency setup and port 42800 availability. Tauri reports its Core startup failure instead of opening a disconnected chat.
 - **Application unavailable:** choose an ID from Settings. No arbitrary executable path or shell command is supported. Application launch is Windows-oriented; other hosts advertise only supported registrations.
@@ -131,7 +181,7 @@ On Linux, Tauri additionally needs GTK3, WebKitGTK 4.1, an application-indicator
 - **Native build fails:** check Rust/MSVC/Windows SDK and WebView2 prerequisites. On Linux, check the GTK/WebKit development libraries. Re-run setup using the committed lockfiles.
 - **401/403 in browser development:** use the current standalone token, the exact allowed development origin/loopback URL, and avoid using a token from a previous desktop process.
 
-For measured results from this implementation environment and unverified external checks, see [validation](docs/VALIDATION.md). Next implementation milestones are [Windows release hardening, conversation lifecycle, and provider/tool extension contracts](docs/ROADMAP.md).
+For measured results from this implementation environment and unverified external checks, see [validation](docs/VALIDATION.md). The next deliberate gate is [memory architecture review](docs/MEMORY_DESIGN_PROPOSAL.md); no semantic memory has been implemented.
 
 ## Trusted application configuration
 
@@ -139,6 +189,6 @@ Windows defaults register Notepad and Calculator when their system executables e
 
 ## Supported Python runtime
 
-KAT Core's language minimum is Python 3.12. KAT 0.1 development, tests and release packaging use **CPython 3.12.x exclusively**; later minor versions are not certified. Root and Core `.python-version` files select 3.12 for uv and GitHub Actions. Patch updates within 3.12 receive the same tests. CI passes the exact `setup-python` executable to Windows setup; local setup uses a matching PATH interpreter or `py -3.12`, never `py -3`. You can pass `-PythonExecutable C:\path\to\Python312\python.exe` to setup/build. An existing incompatible Core venv is rejected; remove only `core/.venv` and rerun setup to replace it. PyInstaller always runs through that validated Core venv, including with `-SkipSetup`.
+KAT Core's language minimum is Python 3.12. KAT 0.1.x/0.2 development, tests and release packaging use **CPython 3.12.x exclusively**; later minor versions are not certified. Root and Core `.python-version` files select 3.12 for uv and GitHub Actions. Patch updates within 3.12 receive the same tests. CI passes the exact `setup-python` executable to Windows setup; local setup uses a matching PATH interpreter or `py -3.12`, never `py -3`. You can pass `-PythonExecutable C:\path\to\Python312\python.exe` to setup/build. An existing incompatible Core venv is rejected; remove only `core/.venv` and rerun setup to replace it. PyInstaller always runs through that validated Core venv, including with `-SkipSetup`.
 
 A green Windows CI job is the KAT 0.1 release gate. `smoke-windows.ps1` verifies a real main window, native bearer-authenticated health evidence, unauthenticated rejection, exact parent/child/listener ownership, normal close cleanup and forced termination cleanup. It preserves diagnostics under `.local/windows-smoke`; CI uploads these even on failure. Native startup stages are recorded in `%LOCALAPPDATA%\com.kat.assistant\logs\desktop.log`, alongside `desktop-core.log` and `core.log`. Tokens are never included in these reports.

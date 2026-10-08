@@ -1,0 +1,55 @@
+name: Publish validated Windows installer
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Stable release tag (for example v0.1.1)
+        required: true
+        type: string
+      validation_run:
+        description: Successful KAT checks run ID for the exact tagged source
+        required: true
+        type: string
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact tagged source and all release gates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          VALIDATION_RUN: ${{ inputs.validation_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$VALIDATION_RUN" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VALIDATION_RUN" > run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VALIDATION_RUN/jobs" > jobs.json
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" > tag.json
+          python - <<'PY'
+          import json
+          run, jobs, tag = [json.load(open(name)) for name in ('run.json', 'jobs.json', 'tag.json')]
+          assert run['name'] == 'KAT checks' and run['conclusion'] == 'success'
+          assert run['event'] == 'push' and run['head_branch'] == 'main'
+          assert tag['object']['type'] == 'commit' and tag['object']['sha'] == run['head_sha']
+          gates = {job['name']: job['conclusion'] for job in jobs['jobs']}
+          assert all(gates.get(name) == 'success' for name in ('core', 'desktop', 'windows'))
+          PY
+      - name: Publish the exact validated installer artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          VALIDATION_RUN: ${{ inputs.validation_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download "$VALIDATION_RUN" --repo "$GITHUB_REPOSITORY" --name kat-windows-installer --dir installer
+          mapfile -t assets < <(find installer -type f -name '*-setup.exe')
+          [[ "${#assets[@]}" -eq 1 ]]
+          [[ "$(basename "${assets[0]}")" == *"${TAG#v}"* ]]
+          (cd installer && sha256sum "$(basename "${assets[0]}")") > installer/SHA256SUMS.txt
+          gh release upload "$TAG" "${assets[0]}" installer/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY"

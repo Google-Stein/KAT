@@ -8,6 +8,7 @@ class ProviderErrorCode(StrEnum):
     AUTHENTICATION = "provider_authentication"
     QUOTA = "provider_quota"
     MODEL_UNAVAILABLE = "provider_model_unavailable"
+    LOCAL_REQUIRED = "provider_local_model_required"
     RATE_LIMITED = "provider_rate_limited"
     TIMEOUT = "provider_timeout"
     NETWORK = "provider_network"
@@ -16,6 +17,11 @@ class ProviderErrorCode(StrEnum):
 
 
 _MESSAGES: dict[ProviderErrorCode, tuple[int, str]] = {
+    ProviderErrorCode.LOCAL_REQUIRED: (
+        503,
+        "This Ollama model is cloud-backed. Select installed local weights and disable "
+        "Ollama cloud features to keep local conversations on this computer.",
+    ),
     ProviderErrorCode.NOT_CONFIGURED: (
         503,
         "Open Settings to configure a provider. For OpenAI, save an API key in Windows "

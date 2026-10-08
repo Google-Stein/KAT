@@ -239,3 +239,52 @@ def test_local_failures_are_safe_and_never_fall_back(
             response = client.post(f"/sessions/{session}/messages", json={"content": "hello"})
             assert response.json()["error"]["code"] == code
             assert "private-provider-payload" not in response.text + client.get("/audit").text
+
+
+@pytest.mark.parametrize(
+    "metadata,name",
+    [
+        ({"remote_host": "https://ollama.com"}, "innocent-alias"),
+        ({"remote_model": "remote-secret-model"}, "innocent-alias"),
+        ({"capabilities": ["cloud", "tools"]}, "model"),
+        ({"manifests": [{"remote_host": "https://ollama.com"}]}, "model"),
+        ({}, "model:cloud"),
+        ({}, "model-cloud"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_cloud_backed_ollama_models_are_rejected_before_context_is_sent(
+    monkeypatch: pytest.MonkeyPatch, metadata: dict[str, Any], name: str
+) -> None:
+    from kat_core.errors import ProviderFailure
+    from kat_core.tools import ApplicationAllowlist
+
+    calls = []
+
+    def backend(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        assert request.url.path == "/api/show", (
+            "Conversation must never reach a cloud-backed Ollama model"
+        )
+        return httpx.Response(200, json=metadata)
+
+    monkeypatch.setattr(
+        OllamaRuntime,
+        "client",
+        lambda self, timeout=60: httpx.AsyncClient(
+            transport=httpx.MockTransport(backend), base_url=self.endpoint
+        ),
+    )
+
+    async def dispatch(name: str, args: dict[str, Any]) -> dict[str, Any]:
+        raise AssertionError("Must not dispatch a tool")
+
+    with pytest.raises(ProviderFailure) as caught:
+        await OllamaRuntime("http://127.0.0.1:11434").respond(
+            [],
+            SettingsUpdate(provider="ollama", model=name),
+            ToolRegistry(ApplicationAllowlist([])),
+            dispatch,
+        )
+    assert caught.value.code.value == "provider_local_model_required"
+    assert calls == ["/api/show"]
