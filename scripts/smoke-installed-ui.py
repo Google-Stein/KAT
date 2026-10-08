@@ -228,7 +228,10 @@ def main() -> None:
                     )
                     > previous_answers
                     and (
-                        window.child_window(title="Allow once", control_type="Button").exists()
+                        any(
+                            control.window_text() == "Allow once"
+                            for control in window.descendants(control_type="Button")
+                        )
                         if needs_approval
                         else textarea.is_enabled()
                     )
@@ -276,7 +279,10 @@ def main() -> None:
                 "AND tool_name='open_application'",
                 (session_id,),
             )
-            assert len(pending) == 1, "Model did not request a new application approval"
+            assert len(pending) == 1, (
+                f"Expected one {application_id} approval; received "
+                + json.dumps([json.loads(item["arguments"]) for item in pending])
+            )
             assert json.loads(pending[0]["arguments"]) == {"application_id": application_id}
             assert pending[0]["id"] not in approval_ids
             approval_ids.add(pending[0]["id"])

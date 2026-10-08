@@ -5,6 +5,11 @@ import json
 from kat_core.schemas import Message
 from kat_core.tools import ToolRegistry
 
+TOOL_TURN_MARKER = (
+    "This earlier tool request belongs to a previous turn. "
+    "Its outcome is available in KAT's transcript and audit."
+)
+
 
 def instructions(registry: ToolRegistry) -> str:
     return (
@@ -43,11 +48,15 @@ def history(messages: list[Message], budget: int = 120000) -> list[dict[str, str
     for message, turn in reversed(list(zip(messages, turns, strict=True))):
         content = message.content
         role = message.role
-        if role == "tool" or (role == "assistant" and turn in tool_turns):
+        if role == "tool":
             # Persisted outcomes have no corresponding assistant tool-call event.
             # Keep them in the transcript/audit, never promote them to user evidence.
             # Adapters independently deliver live results inside the active run.
             continue
+        if role == "assistant" and turn in tool_turns:
+            # Preserve an answered exchange without stale facts or pending-action
+            # language. Bare old user requests can be mistaken for queued work.
+            content = TOOL_TURN_MARKER
         if result and len(content) > budget:
             break
         # Include only a bounded suffix when even the newest message exceeds the budget.

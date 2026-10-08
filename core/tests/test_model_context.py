@@ -1,6 +1,6 @@
 import pytest
 
-from kat_core.model_context import history
+from kat_core.model_context import TOOL_TURN_MARKER, history
 from kat_core.schemas import Message
 
 
@@ -27,6 +27,7 @@ def test_historical_outcomes_are_excluded_without_mutating_persisted_messages(st
     context = history(transcript)
     assert context == [
         {"role": "user", "content": "Open Notepad."},
+        {"role": "assistant", "content": TOOL_TURN_MARKER},
         {"role": "user", "content": "Open Notepad."},
     ]
     assert transcript[2].role == "tool" and "123" in transcript[2].content
@@ -66,6 +67,7 @@ def test_transient_tool_turn_answers_cannot_supply_stale_inference_evidence(
         {"role": "user", "content": "My name is Sam."},
         {"role": "assistant", "content": "Hello, Sam."},
         {"role": "user", "content": "Tell me the time and open Notepad."},
+        {"role": "assistant", "content": TOOL_TURN_MARKER},
         {"role": "user", "content": "Tell me the time and open Calculator."},
     ]
     assert answer.content == "09:54; review the Notepad approval."
