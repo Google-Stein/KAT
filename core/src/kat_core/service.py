@@ -148,8 +148,14 @@ class ChatService:
                     details={"code": failure.code.value, "provider": settings.provider},
                 )
                 raise failure from None
-            assistant = self.store.add_message(session_id, "assistant", text)
-            retrieval.record_usage(memory_context, session_id, assistant.id)
+            assistant = self.store.add_message(
+                session_id,
+                "assistant",
+                text,
+                after_insert=lambda db, message: retrieval.record_usage(
+                    memory_context, session_id, message.id, db=db
+                ),
+            )
             approvals = [self.store.approval(approval_id) for approval_id in created_approvals]
             return ChatResponse(
                 user_message=user_message,

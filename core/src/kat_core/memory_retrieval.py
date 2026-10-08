@@ -2,6 +2,7 @@
 
 import json
 import re
+import sqlite3
 from uuid import uuid4
 
 from kat_core.memory_schemas import MemoryContextItem
@@ -137,11 +138,19 @@ class MemoryRetrieval:
             return selected
 
     def record_usage(
-        self, context: list[MemoryContextItem], session_id: str, assistant_id: str
+        self,
+        context: list[MemoryContextItem],
+        session_id: str,
+        assistant_id: str,
+        *,
+        db: sqlite3.Connection | None = None,
     ) -> None:
         if not context:
             return
-        with self.memories.store.transaction() as db:
+        if db is None:
+            with self.memories.store.transaction() as connection:
+                self.record_usage(context, session_id, assistant_id, db=connection)
+        else:
             now = timestamp()
             for item in context:
                 # No copied wording: a concurrent Forget cannot resurrect content.

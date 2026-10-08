@@ -364,6 +364,16 @@ def main() -> None:
         )
 
         def fresh_conversation() -> str:
+            # A committed SQLite write precedes the renderer's save acknowledgement.
+            # Wait for the review overlay to close before clicking navigation beneath it.
+            wait_for(
+                lambda: (
+                    not any(
+                        control.window_text() == "Close memory review"
+                        for control in window.descendants(control_type="Button")
+                    )
+                )
+            )
             before = {r["id"] for r in rows("SELECT id FROM sessions")}
             control = next(
                 c
@@ -451,6 +461,7 @@ def main() -> None:
         wait_for(
             lambda: rows("SELECT id FROM memory_items WHERE id=? AND revision=2", (memory_id,))
         )
+        stage = "memory-updated-new-conversation"
         session_id = fresh_conversation()
         send(question)
         used = rows("SELECT * FROM memory_usage WHERE session_id=?", (session_id,))

@@ -3,7 +3,7 @@
 import json
 import sqlite3
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -99,7 +99,12 @@ class Store:
             ]
 
     def add_message(
-        self, session_id: str, role: Literal["user", "assistant", "tool"], content: str
+        self,
+        session_id: str,
+        role: Literal["user", "assistant", "tool"],
+        content: str,
+        *,
+        after_insert: Callable[[sqlite3.Connection, Message], None] | None = None,
     ) -> Message:
         message = Message(
             id=str(uuid4()),
@@ -114,6 +119,8 @@ class Store:
                 tuple(message.model_dump().values()),
             )
             db.execute("UPDATE sessions SET updated_at=? WHERE id=?", (timestamp(), session_id))
+            if after_insert is not None:
+                after_insert(db, message)
         return message
 
     def settings(self) -> SettingsUpdate:

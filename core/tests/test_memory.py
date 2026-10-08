@@ -476,3 +476,29 @@ def test_memory_enabled_local_failure_has_no_cloud_fallback_or_success_usage(
             assert response.json()["error"]["code"] == "provider_network"
             assert client.get(f"/sessions/{session}/memory-usage").json() == []
             assert len(client.get("/memories").json()) == 1
+
+
+def test_reply_and_usage_commit_together_or_roll_back(memories):
+    add(memories)
+    retrieval = MemoryRetrieval(memories)
+    context = retrieval.retrieve(QUESTION, None)
+    session = memories.store.create_session("Atomic memory response")
+
+    def fail_after_usage(db, message):
+        retrieval.record_usage(context, session.id, message.id, db=db)
+        raise RuntimeError("synthetic failed response transaction")
+
+    with pytest.raises(RuntimeError):
+        memories.store.add_message(
+            session.id, "assistant", "Not committed", after_insert=fail_after_usage
+        )
+    assert memories.store.messages(session.id) == []
+    assert memories.usage(session_id=session.id) == []
+    assert not any(e.event == "memory_retrieved" for e in memories.store.audit(100))
+    reply = memories.store.add_message(
+        session.id,
+        "assistant",
+        "Committed",
+        after_insert=lambda db, m: retrieval.record_usage(context, session.id, m.id, db=db),
+    )
+    assert memories.usage(session_id=session.id)[0].assistant_message_id == reply.id
