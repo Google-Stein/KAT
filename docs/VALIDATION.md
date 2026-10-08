@@ -342,7 +342,8 @@ The new deterministic HTTP-protocol regression reproduced that stale answer on
 both OpenAI Agents SDK and Ollama before the fix (two expected failures). Promoting
 persisted tool messages into user text exposed old outcomes without their matching
 assistant tool calls. The shared history builder now omits those records from
-future inference; active loop results, SQLite, approval cards, transcript and audit
+future inference, along with assistant replies from historical tool turns; active
+loop results, SQLite, approval cards, transcript and audit
 are preserved. Shared instructions require new time/action calls on new requests.
 
 The owner checked the failed Calculator attempt's Activity/approvals and reported
@@ -351,7 +352,7 @@ observed Windows launcher failure. Tests now cover Calculator after earlier time
 and Notepad activity and repeated Calculator requests. The production allowlist,
 fixed native `.exe` launch, shell restrictions and approvals are unchanged.
 
-Cloud checks passed: **146 Python tests**, including both actual provider wire
+Cloud checks passed: **148 Python tests**, including both actual provider wire
 protocol regressions with mocked model decisions, Core Ruff/format/strict mypy,
 version metadata consistency, real standalone Core authentication/persistence/
 restart/shutdown, **26 frontend tests**, ESLint/Prettier/TypeScript/Vite build,
@@ -375,3 +376,14 @@ No installation or user-data directory is cleared. During review, the extended
 UI harness also needed to wait for an approval card instead of an enabled composer
 on application requests: pending approval intentionally disables that composer.
 These corrections require another full Windows run; no timeout was increased.
+
+[Focused real-Ollama run 37807882322](https://github.com/Google-Stein/KAT/actions/runs/37807882322)
+exposed a second stale-evidence path: removing raw tool records alone still left
+the previous assistant timestamp in model context. The repeated time request did
+not generate a fresh result. New deterministic regressions reproduced this for
+both provider wire protocols and for tool results before/after the assistant reply
+(four expected failures). The shared builder now also omits assistant replies from
+historical tool turns. User messages and ordinary conversation replies remain;
+all omitted inference data stays in the full stored transcript and audit. A focused
+Core-only real-backend diagnostic is distinct from the mandatory full installed
+UI gate; it never substitutes for Windows release validation.

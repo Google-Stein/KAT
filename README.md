@@ -81,7 +81,7 @@ Development starts Vite and Tauri. Tauri launches the Core virtual environment, 
 
 If PowerShell blocks local scripts, use the policy approved for your machine; for example, `powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1` runs that single local script without changing the machine policy.
 
-To try the tools, ask "What time is it here?" or "Open Notepad." Review the application ID in the approval card and select Allow or Deny. Only applications shown in Settings are available. Tool outcomes are recorded in the transcript and Audit screen. Approval executes the action and updates its card. Historical tool records are excluded from later model context; every new action requires a fresh tool request and approval. Current tool-loop results still reach the model immediately.
+To try the tools, ask "What time is it here?" or "Open Notepad." Review the application ID in the approval card and select Allow or Deny. Only applications shown in Settings are available. Tool outcomes are recorded in the transcript and Audit screen. Approval executes the action and updates its card. Historical tool records and assistant replies from tool turns are excluded from later model context; every new action requires a fresh tool request and approval. Current tool-loop results still reach the model immediately.
 
 ## Windows production build
 

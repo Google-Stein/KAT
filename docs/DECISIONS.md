@@ -107,8 +107,12 @@ These are proposals requiring owner decisions, not implementation authorization.
 messages instead of disguising them as user assertions. These records have no
 matching assistant tool-call event; transient timestamps and completed side effects
 must not be reused to satisfy a new request. Keep the full SQLite transcript,
-approval state, audit and UI unchanged. Keep ordinary user/assistant dialogue;
-shared instructions require a fresh time/action call for each new request.
+approval state, audit and UI unchanged. Real Ollama regression showed that keeping
+the old assistant's timestamp also permits stale reuse. Omit assistant replies
+from historical user turns containing a tool record, including pending-approval
+replies before execution. Keep user messages and replies from ordinary conversation
+turns. Shared instructions require a fresh time/action call for each new request
+and treat older user requests as history rather than queued work.
 
 OpenAI SDK and Ollama continue receiving real tool results inside the active loop
 with their corresponding calls. Approval still runs outside that loop, updates

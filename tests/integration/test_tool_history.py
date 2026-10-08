@@ -81,8 +81,11 @@ def test_repeated_time_and_application_requests_use_new_tools_and_keep_history(
             # Reproduce the owner's stale-evidence failure when old tool data is
             # presented as a user assertion rather than an active tool response.
             contaminated = any(
-                item.get("role") == "user"
-                and str(item.get("content", "")).startswith("KAT recorded tool outcome")
+                (
+                    item.get("role") == "user"
+                    and str(item.get("content", "")).startswith("KAT recorded tool outcome")
+                )
+                or (item.get("role") == "assistant" and item.get("content") == TIMES[0])
                 for item in context
             )
             if contaminated:

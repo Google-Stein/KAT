@@ -6,6 +6,11 @@ on:
         description: 'Optional KAT checks run artifact; empty tests released 0.1.1 credentials only'
         required: false
         default: ''
+      core_only:
+        description: 'Only real local Core/tool diagnosis; does not validate a desktop'
+        required: false
+        default: false
+        type: boolean
 permissions:
   contents: read
   actions: read
@@ -23,10 +28,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           EXECUTABLE_RUN: ${{ inputs.executable_run }}
+          CORE_ONLY: ${{ inputs.core_only }}
         run: |
           python -m pip install uv
           uv sync --project core --frozen --group dev
-          if ($env:EXECUTABLE_RUN) {
+          if ($env:CORE_ONLY -eq 'true') {
+            ./scripts/test-local-windows.ps1
+          } elseif ($env:EXECUTABLE_RUN) {
             if ($env:EXECUTABLE_RUN -notmatch '^\d+$') { throw 'Expected a numeric run ID.' }
             gh run download $env:EXECUTABLE_RUN --name kat-windows-executable --dir .local/diagnostic-app
             if ($LASTEXITCODE -ne 0) { throw 'Could not download packaged application.' }
