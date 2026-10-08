@@ -364,6 +364,9 @@ def main() -> None:
         )
 
         def fresh_conversation() -> str:
+            nonlocal stage
+            source_stage = stage
+            stage = source_stage + ":review-close"
             # A committed SQLite write precedes the renderer's save acknowledgement.
             # Wait for the review overlay to close before clicking navigation beneath it.
             wait_for(
@@ -374,13 +377,29 @@ def main() -> None:
                     )
                 )
             )
+            print("PASS: memory review closed before navigation.", flush=True)
             before = {r["id"] for r in rows("SELECT id FROM sessions")}
+            stage = source_stage + ":new-session-control"
             control = next(
                 c
                 for c in window.descendants(control_type="Button")
                 if c.window_text().startswith("New conversation")
             )
+            print(
+                json.dumps(
+                    {
+                        "test": "new-conversation-navigation",
+                        "visible": control.is_visible(),
+                        "enabled": control.is_enabled(),
+                        "button_rectangle": list(control.rectangle()),
+                        "window_rectangle": list(window.rectangle()),
+                    }
+                ),
+                flush=True,
+            )
+            stage = source_stage + ":new-session-click"
             control.click_input()
+            stage = source_stage + ":new-session-commit"
             return wait_for(
                 lambda: [r for r in rows("SELECT id FROM sessions") if r["id"] not in before]
             )[0]["id"]
