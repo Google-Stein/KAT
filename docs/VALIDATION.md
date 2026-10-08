@@ -342,7 +342,7 @@ The new deterministic HTTP-protocol regression reproduced that stale answer on
 both OpenAI Agents SDK and Ollama before the fix (two expected failures). Promoting
 persisted tool messages into user text exposed old outcomes without their matching
 assistant tool calls. The shared history builder now omits those records from
-future inference, along with assistant replies from historical tool turns; active
+future inference, along with the original assistant content from historical tool turns; active
 loop results, SQLite, approval cards, transcript and audit
 are preserved. Shared instructions require new time/action calls on new requests.
 
@@ -387,3 +387,17 @@ historical tool turns. User messages and ordinary conversation replies remain;
 all omitted inference data stays in the full stored transcript and audit. A focused
 Core-only real-backend diagnostic is distinct from the mandatory full installed
 UI gate; it never substitutes for Windows release validation.
+
+[Run 37808750400](https://github.com/Google-Stein/KAT/actions/runs/37808750400)
+passed actual Core/local repeated time, repeated Notepad and repeated Calculator
+selection/approval/native process execution. Its installed production UI passed
+credentials, two identical time requests with newer results, and two distinct
+Notepad approvals/windows. It stopped on an ambiguous control at Calculator
+selection; the harness now enumerates approval buttons and reports validated
+pending application IDs if the count is unexpected. Dropping tool-turn assistant
+messages entirely leaves old user requests apparently unanswered. Their original
+content is now replaced with a constant, result-free historical marker, preserving
+turn structure without exposing stale timestamps, status or launch results.
+[Core-only run 37809113626](https://github.com/Google-Stein/KAT/actions/runs/37809113626)
+passed the real local sequence; earlier focused run 37808749889 did not produce
+a fresh time result. These are recorded distinctly from the full release gate.

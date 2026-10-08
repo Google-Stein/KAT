@@ -279,6 +279,19 @@ def main() -> None:
                 "AND tool_name='open_application'",
                 (session_id,),
             )
+            if len(pending) != 1:
+                print(
+                    json.dumps(
+                        {
+                            "test": "application-selection",
+                            "application_id": application_id,
+                            "pending_arguments": [
+                                json.loads(item["arguments"]) for item in pending
+                            ],
+                        }
+                    ),
+                    flush=True,
+                )
             assert len(pending) == 1, (
                 f"Expected one {application_id} approval; received "
                 + json.dumps([json.loads(item["arguments"]) for item in pending])

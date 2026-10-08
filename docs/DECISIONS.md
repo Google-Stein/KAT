@@ -108,9 +108,11 @@ messages instead of disguising them as user assertions. These records have no
 matching assistant tool-call event; transient timestamps and completed side effects
 must not be reused to satisfy a new request. Keep the full SQLite transcript,
 approval state, audit and UI unchanged. Real Ollama regression showed that keeping
-the old assistant's timestamp also permits stale reuse. Omit assistant replies
-from historical user turns containing a tool record, including pending-approval
-replies before execution. Keep user messages and replies from ordinary conversation
+the old assistant's timestamp also permits stale reuse. Replace assistant content
+from historical user turns containing a tool record with a fixed, result-free
+historical marker, including pending-approval replies before execution. This keeps
+turn structure so old requests do not appear to be unanswered work. Keep user
+messages and replies from ordinary conversation
 turns. Shared instructions require a fresh time/action call for each new request
 and treat older user requests as history rather than queued work.
 
