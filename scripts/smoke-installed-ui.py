@@ -386,6 +386,14 @@ def main() -> None:
             )[0]["id"]
 
         def inspect_memory(text: str) -> None:
+            wait_for(
+                lambda: (
+                    not any(
+                        control.window_text() == "Close memory review"
+                        for control in window.descendants(control_type="Button")
+                    )
+                )
+            )
             button("Memory").click_input()
             button("Inspect memory: " + text).click_input()
 
