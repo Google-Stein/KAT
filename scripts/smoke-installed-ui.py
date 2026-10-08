@@ -385,14 +385,26 @@ def main() -> None:
                 for c in window.descendants(control_type="Button")
                 if c.window_text().startswith("New conversation")
             )
+            control_rect = control.rectangle()
+            window_rect = window.rectangle()
             print(
                 json.dumps(
                     {
                         "test": "new-conversation-navigation",
                         "visible": control.is_visible(),
                         "enabled": control.is_enabled(),
-                        "button_rectangle": list(control.rectangle()),
-                        "window_rectangle": list(window.rectangle()),
+                        "button_rectangle": [
+                            control_rect.left,
+                            control_rect.top,
+                            control_rect.right,
+                            control_rect.bottom,
+                        ],
+                        "window_rectangle": [
+                            window_rect.left,
+                            window_rect.top,
+                            window_rect.right,
+                            window_rect.bottom,
+                        ],
                     }
                 ),
                 flush=True,
