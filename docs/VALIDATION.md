@@ -1,6 +1,6 @@
 # Validation record
 
-This implementation was checked in the Codex Linux cloud workspace on 2026-10-07. Windows is the release target. No live OpenAI call was made: no provider key was present, and the current cloud policy denied HTTPS CONNECT to `api.openai.com`. SDK tests replace HTTP transport, not production permission/storage/orchestration logic.
+Initial Linux validation ran in the Codex cloud workspace on 2026-10-07. The corrected packaged Windows runtime passed GitHub Actions on 2026-10-08; see the release-gate evidence below. No live OpenAI call was made: no provider key was present. The initial cloud network policy also denied HTTPS CONNECT to `api.openai.com`; GitHub Actions log access was subsequently configured and verified. SDK tests replace HTTP transport, not production permission/storage/orchestration logic.
 
 ## Toolchain and installation
 
@@ -49,7 +49,7 @@ The UI checks cover sessions/chat, approval allow/deny, settings, audit, native 
 
 ## Native desktop and packaging
 
-Native validation uses the retained toolchain/local dependency prefix described below. Normal unit tests deliberately exclude subprocess fixtures and opt-in service integration tests; the two Core integration tests are run explicitly rather than counted as ordinary unit tests.
+Native validation uses the retained toolchain/local dependency prefix described below. Normal unit tests deliberately exclude subprocess fixtures and opt-in service integration tests; the three Core integration tests are run explicitly rather than counted as ordinary unit tests.
 
 | Command / check | Result |
 | --- | --- |
@@ -118,7 +118,7 @@ DISPLAY=:91 import -window root .local/native-smoke/restarted-screenshot.png
 
 No localhost preview link was created. Xvfb has no TCP listener; this is an internal test display, not a published application endpoint. Native/Core/Xvfb processes used in validation were stopped afterwards.
 
-## Windows stabilization release gate (in progress)
+## Windows stabilization investigation
 
 The first published workflow, [run 37693164653](https://github.com/Google-Stein/KAT/actions/runs/37693164653), tested foundation commit `f6292325f0172036bcb54f10e93ae1ccc5d432a8`. Core and desktop jobs passed. Windows packaging passed, but the desktop startup smoke failed; the original combined timeout gave no stage-specific diagnostics. This is a failed release gate, not Windows runtime validation. The owner reported that packaging selected Python 3.14.7 via `py -3` despite CI selecting 3.12. That runtime-selection defect is confirmed; its causal relationship to the startup failure remains under investigation.
 
@@ -129,3 +129,44 @@ The first stabilization run, [37718763734](https://github.com/Google-Stein/KAT/a
 Source investigation identified the packaged startup selection defect: Tauri CLI adds `tauri/custom-protocol` (a dependency feature), while KAT tested its own `custom-protocol` forwarding feature. Those flags need not be enabled together. The release therefore selected development Python, and the original smoke test required a `kat-core.exe` child. The correction queries `tauri::is_dev()` for both resource selection and development navigation access. The Python 3.14 selection was a separate confirmed build defect, rather than evidence that Python 3.14 startup duration caused the timeout.
 
 [Run 37719602017](https://github.com/Google-Stein/KAT/actions/runs/37719602017) reproduced the topology defect on Python 3.12.10 and captured direct evidence: desktop PID 7708 launched `core/.venv/Scripts/python.exe` PID 10176; the actual API server ran as descendant PID 7540. Authenticated `/health` returned 200. The smoke failed explicitly with `[process-topology]` because there was no direct `kat-core.exe` child. Thus readiness duration was not the cause. Startup/Core logs were printed, exposed in check annotations and uploaded as `kat-windows-diagnostics` (artifact 11525585553). Core and desktop jobs passed; Windows remained failed pending the framework build-mode correction.
+
+The isolated [Python 3.14.7 reproduction, run 37719666855](https://github.com/Google-Stein/KAT/actions/runs/37719666855), restored the original launcher and reproduced the same topology failure. Desktop PID 2360 launched venv Python PID 9472, whose server descendant PID 9376 returned authenticated health 200 in about three seconds. No packaged `kat-core.exe` was launched. This confirms the feature-flag/root-selection defect independently of the supported-interpreter correction; increasing the startup timeout would not repair it. This investigation branch is diagnostic evidence, not a supported Python 3.14 release configuration.
+
+## Windows release gate: passed
+
+[GitHub Actions run **37720158906**](https://github.com/Google-Stein/KAT/actions/runs/37720158906) completed successfully at **2026-10-08 03:02:42 UTC**, on source commit **`1d5a5014fc7db8a86cfbd9fc1ef8d8ab6104bd16`**. The **Core, desktop and Windows jobs were all green**. This satisfies the KAT 0.1 foundation's packaged Windows runtime gate. It does not certify a live model account or installer installation.
+
+The Windows setup, Core venv, tests and PyInstaller packaging all used **CPython 3.12.10 x64**, selected explicitly from `actions/setup-python`; the packaging log confirms the same interpreter. The desktop deadline remained **45 seconds**.
+
+| Command/check in the successful workflow | Actual result |
+| --- | --- |
+| `scripts/build-windows.ps1 -NoBundle -PythonExecutable <setup-python executable>` | Passed; actual Windows executable and bundled Core built |
+| `scripts/smoke-windows.ps1` | Passed both real window/startup/authentication checks and both shutdown paths |
+| `tests/integration/test_windows_smoke_diagnostics.ps1` | 13 checks passed across six failure categories, including clean and leaked lifecycle cases |
+| `core/.venv/Scripts/python.exe -m pytest core/tests tests/integration -q` | **82 passed, 1 skipped**; skipped test checks the POSIX execute bit |
+| `core/.venv/Scripts/python.exe scripts/smoke-core.py --executable desktop/src-tauri/target/release/binaries/kat-core/kat-core.exe` | Passed authenticated API, unauthorized rejection, keyless error, persisted session/settings after restart and shutdown |
+| Windows `cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --no-default-features` | **10 passed**; 5 deliberately ignored (3 integrations and 2 subprocess fixtures) |
+| Windows native tests with `-- --ignored --skip sleeper_fixture --skip launcher_fixture --test-threads=1` | **All 3 integration tests passed**: development Core, packaged Core and Core surviving a retiring restart worker |
+| Windows `ordinary_core_descendants_cannot_escape` / `explicit_application_breakaway_survives` | Passed; descendants terminate and explicit application breakaway survives job close |
+| Linux Core job: pytest, Ruff, formatting, mypy, real Core process smoke | **83 tests passed**; every other check passed |
+| Desktop job: `npm test`, lint, format, typecheck, production build | **15 tests passed**; every other check passed |
+| Desktop job: native tests and `cargo fmt --check` | **9 tests passed**, 4 intentional ignores; formatting passed |
+| Windows diagnostic/executable artifact upload | Both passed |
+
+The smoke's real process evidence was:
+
+| Shutdown scenario | Desktop PID | Main window handle | Direct packaged Core PID / port owner | Authentication and cleanup |
+| --- | --- | --- | --- | --- |
+| Normal window close | 7592 | 393376 | 9064 | Native bearer-authenticated health passed; independent unauthenticated health returned 401; Core exited and port 42800 closed |
+| Forced desktop termination | 7316 | 328026 | 4644 | Same authentication/ownership checks passed; killing desktop terminated Core through its Job Object and closed port 42800 |
+
+Native logs confirm `core_start` selects `target/release/binaries/kat-core/kat-core.exe`. The smoke verifies the reported authenticated PID is exactly the desktop's single `kat-core.exe` child and the listener owner. Startup failures distinguish desktop-process, window-creation, core-child-startup, authenticated-readiness, process-topology and port-lifecycle. Core and desktop log tails appear in CI output and check annotations; diagnostics are retained on failure without environment or credential dumps.
+
+Artifacts from this successful run:
+
+- [Windows executable and bundled Core](https://github.com/Google-Stein/KAT/actions/runs/37720158906/artifacts/11525726081), artifact `11525726081`.
+- [Windows startup diagnostics](https://github.com/Google-Stein/KAT/actions/runs/37720158906/artifacts/11526110519), artifact `11526110519`.
+
+Additional cloud checks passed during stabilization: full native build and Clippy using the CLI's direct `tauri/custom-protocol` dependency feature; full Windows target/all-targets compile and Clippy checks; 9 local native unit tests and 3 explicit Core integrations; Python Ruff/format/mypy including smoke/integration files; standalone and packaged Linux Core restart smoke; frontend tests/lint/format/type/build; PowerShell parsing and all 13 diagnostic regression checks. These supplement the Windows run, rather than replacing it.
+
+Remaining validation limits: live OpenAI access requires the owner's configured key; NSIS installation/uninstallation, signing, updates and manual Windows desktop usability testing were not exercised by this executable-only gate. Feature development remains paused; the unpushed credential-management work is preserved locally on `wip/windows-credential-setup` and is absent from these release corrections.
