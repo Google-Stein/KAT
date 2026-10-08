@@ -178,6 +178,8 @@ async function connect() {
 describe('KAT desktop workflow', () => {
   it('restores persisted history, creates sessions, and sends a text conversation', async () => {
     const user = await connect();
+    expect(screen.getByLabelText('KAT version')).toHaveTextContent('0.1.0');
+    expect(screen.getByLabelText('Selected inference provider')).toHaveTextContent('OpenAI · cloud');
     await user.click(screen.getByRole('button', { name: /New conversation/ }));
     await screen.findByRole('heading', { name: 'Hello. I’m KAT.' });
     await user.type(screen.getByLabelText('Message KAT'), 'Can you help me plan today?');
@@ -547,5 +549,7 @@ describe('Local provider selection', () => {
     expect(state.settings.provider).toBe('ollama');
     expect(state.settings.local_endpoint).toBe('http://127.0.0.1:11434');
     expect(screen.getByText(/inference stay on this computer/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: firstSession.title }));
+    expect(screen.getByLabelText('Selected inference provider')).toHaveTextContent('Ollama · local');
   });
 });

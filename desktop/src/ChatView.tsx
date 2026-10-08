@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { ArrowUp, Clock3, MessageSquare, Sparkles, Terminal, UserRound } from 'lucide-react';
 import { ApprovalCard } from './ApprovalCard';
-import type { Approval, Message, Session } from './types';
+import type { Approval, Message, Session, Settings } from './types';
 
 interface Props {
+  provider: Settings['provider'] | undefined;
   session: Session | undefined;
   messages: Message[];
   approvals: Approval[];
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function ChatView({
+  provider,
   session,
   messages,
   approvals,
@@ -46,8 +48,12 @@ export function ChatView({
           <span className="eyebrow">WORKSPACE / CONVERSATION</span>
           <h1>{session?.title ?? 'Your next idea starts here'}</h1>
         </div>
-        <span className="local-pill">
-          <span className="status-dot" /> Local workspace
+        <span className="local-pill" aria-label="Selected inference provider">
+          {provider === 'ollama'
+            ? 'Ollama · local'
+            : provider === 'openai'
+              ? 'OpenAI · cloud'
+              : 'Loading provider…'}
         </span>
       </header>
       {!providerReady && (

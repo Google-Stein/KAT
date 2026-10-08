@@ -3,6 +3,7 @@ import type { Session } from './types';
 
 export type View = 'chat' | 'settings' | 'audit';
 interface Props {
+  version: string;
   sessions: Session[];
   selectedId: string | null;
   view: View;
@@ -13,7 +14,17 @@ interface Props {
   onDisconnect: () => void;
 }
 
-export function Sidebar({ sessions, selectedId, view, busy, onNew, onSelect, onView, onDisconnect }: Props) {
+export function Sidebar({
+  version,
+  sessions,
+  selectedId,
+  view,
+  busy,
+  onNew,
+  onSelect,
+  onView,
+  onDisconnect,
+}: Props) {
   return (
     <aside className="sidebar" aria-label="Workspace navigation">
       <div className="brand">
@@ -24,7 +35,9 @@ export function Sidebar({ sessions, selectedId, view, busy, onNew, onSelect, onV
           <span className="brand-name">KAT</span>
           <span className="brand-subtitle">PERSONAL AI</span>
         </div>
-        <span className="version">0.1</span>
+        <span className="version" aria-label="KAT version">
+          {version}
+        </span>
       </div>
       <button className="new-chat-button" onClick={onNew} disabled={busy}>
         <Plus size={17} /> New conversation{' '}

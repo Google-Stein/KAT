@@ -352,6 +352,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <Sidebar
+        version={health?.version ?? '…'}
         sessions={sessions}
         selectedId={selectedId}
         view={view}
@@ -377,6 +378,7 @@ export default function App() {
         )}
         {view === 'chat' && (
           <ChatView
+            provider={settings?.provider}
             session={sessions.find((session) => session.id === selectedId)}
             messages={messages}
             approvals={approvals}
