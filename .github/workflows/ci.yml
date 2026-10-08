@@ -65,6 +65,20 @@ jobs:
         with:
           node-version: '24'
       - uses: dtolnay/rust-toolchain@stable
+      - name: Cache locked Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            desktop/src-tauri/target/release
+          key: kat-windows-cargo-v1-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+          restore-keys: kat-windows-cargo-v1-
+      - name: Rebuild application resources from current source
+        shell: pwsh
+        run: |
+          cargo clean --manifest-path desktop/src-tauri/Cargo.toml -p kat-desktop --release
+          if ($LASTEXITCODE -ne 0) { throw 'Could not clear app outputs before current-resource build.' }
       - name: Build Windows application and installer
         shell: pwsh
         run: ./scripts/build-windows.ps1 -PythonExecutable '${{ steps.python.outputs.python-path }}'

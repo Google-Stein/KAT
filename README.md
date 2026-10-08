@@ -43,8 +43,9 @@ The explicit real-backend Core smoke command is:
 It requires an already running backend/model and on Windows launches Notepad after
 its test approval. `test-local-windows.ps1` is a disposable CI helper that explicitly
 downloads a checksum-verified runtime (~1.47 GB) and weights (~1.4 GB).
-`smoke-installed-ui.py` uses CDP and synthetic vault data **only in a disposable
-Windows CI account**; production never enables a debugging port. Deterministic
+`smoke-installed-ui.py` uses normal Windows accessibility and synthetic native
+key input **only in a disposable Windows CI account**. It enables no debugging
+port or developer tools. Deterministic
 protocol tests do not count as real inference. See VALIDATION for measured gates.
 
 `VERSION` is the release source; run `python scripts/version.py`, then `--check`.

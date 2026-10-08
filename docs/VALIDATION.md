@@ -230,3 +230,19 @@ verified tag/source equality and all three green jobs before attaching artifact
 no additional repository credential was needed. A duplicate tag-triggered
 foundation workflow was canceled after the same source's successful main-branch
 validation; future CI checks run on main pushes and pull requests.
+
+
+The CDP failure reproduced on the already released 0.1.1 installer in diagnostic
+runs 37733135360 and 37733439890, including an isolated WebView profile: connection
+was refused on port 9527 while native logs confirmed window/Core readiness. No
+production devtools/security settings were changed. Windows accessibility
+attachment passed in [run 37733654761](https://github.com/Google-Stein/KAT/actions/runs/37733654761).
+[Run 37734110569](https://github.com/Google-Stein/KAT/actions/runs/37734110569)
+then exercised the actual released installed 0.1.1 UI's native masked dialog:
+cancel, save synthetic key, replace synthetic key, close/relaunch with the vault
+entry available to Core, and remove through Settings with Core/token refresh.
+All passed. This extends 0.1.1's actual credential UX evidence; it is still not a
+live account/billing test. The full 0.2 gate now uses normal Windows accessibility
+with read-only inspection of its disposable test database; no CDP/debugging port
+or production test command is introduced. Superseded CDP full runs were canceled
+after this diagnosis rather than retried without a changed hypothesis.
