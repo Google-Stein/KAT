@@ -202,3 +202,31 @@ is available in this cloud task. Native vault tests and SDK protocol simulations
 are separate from interactive key-entry/account validation. Installer signing,
 auto-update and upgrade UX remain future hardening. A later real local-inference
 and installed-WebView gate will be reported separately when it actually passes.
+
+
+## 0.2 real backend investigation — release gate still pending
+
+[Run 37732000562](https://github.com/Google-Stein/KAT/actions/runs/37732000562),
+source `9f2a98e`, passed Core and desktop checks, Windows packaging, portable
+startup, installed native lifecycle and restart persistence. Its explicitly
+downloaded official Ollama **0.40.1** runtime passed the pinned asset SHA-256;
+Ollama verified the **Qwen3:1.7b** weights digest. On the actual Windows CPU runner,
+`smoke-local.py` passed real local conversation, model-selected current-time tool,
+and a model-requested Notepad approval/native launch through production Core with
+no OpenAI key and a guard preventing any OpenAI client construction.
+
+The installed-WebView automation then failed at `installed-startup`: CDP could
+not attach within the existing 45-second deadline. This is **not a green 0.2
+release gate**, and the real Core/backend successes do not certify the installed
+UI journey. No startup timeout was increased. A separate released-application
+attachment diagnostic isolates this test-automation issue from inference and
+native packaging. GPU/RTX 4090 performance and a live OpenAI account are not
+covered by the CPU/transport tests.
+
+Release [v0.1.1](https://github.com/Google-Stein/KAT/releases/tag/v0.1.1) includes
+the exact successful installer and SHA256SUMS. [Publication run 37732444023](https://github.com/Google-Stein/KAT/actions/runs/37732444023)
+verified tag/source equality and all three green jobs before attaching artifact
+11530166466. This avoids a cloud-side `uploads.github.com` network restriction;
+no additional repository credential was needed. A duplicate tag-triggered
+foundation workflow was canceled after the same source's successful main-branch
+validation; future CI checks run on main pushes and pull requests.

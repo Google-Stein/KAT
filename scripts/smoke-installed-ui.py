@@ -8,6 +8,7 @@ import argparse
 import ctypes
 import os
 import subprocess
+import tempfile
 import time
 from contextlib import suppress
 from pathlib import Path
@@ -77,6 +78,7 @@ def main() -> None:
     environment = os.environ.copy()
     for name in ("OPENAI_API_KEY", "KAT_OPENAI_API_KEY"):
         environment.pop(name, None)
+    environment["WEBVIEW2_USER_DATA_FOLDER"] = tempfile.mkdtemp(prefix="kat-webview-ci-")
     environment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = (
         "--remote-debugging-port=9527 --remote-debugging-address=127.0.0.1"
     )
