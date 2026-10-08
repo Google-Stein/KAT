@@ -88,7 +88,7 @@ def main() -> None:
         raise RuntimeError("Settings control could not be scrolled into view")
 
     def button(name: str) -> Any:
-        control = window.child_window(title=name, control_type="Button")
+        control = window.child_window(title=name, control_type="Button", visible_only=False)
         control.wait("exists", timeout=20)
         with suppress(Exception):
             control.wrapper_object().iface_scroll_item.ScrollIntoView()
@@ -165,14 +165,16 @@ def main() -> None:
             return
 
         stage = "local-provider-selection"
-        provider = window.child_window(title="Provider", control_type="ComboBox")
+        provider = window.child_window(
+            title="Provider", control_type="ComboBox", visible_only=False
+        )
         provider.wait("exists enabled", timeout=20)
         reveal(provider)
         provider.set_focus()
         provider.type_keys("{HOME}{DOWN}{ENTER}")
         stage = "local-model-selection"
         # An input with a datalist is exposed as a ComboBox rather than Edit.
-        model = window.child_window(title="Model", control_type="ComboBox")
+        model = window.child_window(title="Model", control_type="ComboBox", visible_only=False)
         model.wait("exists enabled", timeout=20)
         reveal(model)
         model.set_focus()
@@ -190,9 +192,12 @@ def main() -> None:
             for control in window.descendants(control_type="Button")
             if control.window_text().startswith("New conversation")
         )
+        previous_sessions = {row["id"] for row in rows("SELECT id FROM sessions")}
         new.click_input()
         session_id = wait_for(
-            lambda: rows("SELECT id FROM sessions ORDER BY created_at DESC LIMIT 1")
+            lambda: [
+                row for row in rows("SELECT id FROM sessions") if row["id"] not in previous_sessions
+            ]
         )[0]["id"]
 
         def send(text: str) -> None:
