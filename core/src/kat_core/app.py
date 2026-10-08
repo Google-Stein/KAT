@@ -16,6 +16,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from kat_core import __version__
 from kat_core.config import CoreConfig
 from kat_core.errors import ProviderFailure
+from kat_core.memory_api import memory_router
+from kat_core.memory_store import MemoryError
 from kat_core.provider import ModelRuntime
 from kat_core.providers import ProviderRegistry, SelectedRuntime
 from kat_core.schemas import (
@@ -87,6 +89,7 @@ def create_app(
         openapi_url=None,
     )
     app.state.store, app.state.service = store, service
+    app.include_router(memory_router(store, service))
 
     @app.middleware("http")
     async def observe_request(request: Request, call_next: Any) -> Any:
@@ -124,6 +127,10 @@ def create_app(
     async def unexpected_error(_request: Request, error: Exception) -> JSONResponse:
         logger.error("unexpected_request_error exception_type=%s", type(error).__name__)
         return JSONResponse(status_code=500, content={"detail": "An internal Core error occurred"})
+
+    @app.exception_handler(MemoryError)
+    async def memory_error(_request: Request, error: MemoryError) -> JSONResponse:
+        return JSONResponse(status_code=error.status, content={"detail": str(error)})
 
     def require_session(session_id: str) -> Session:
         session = store.session(session_id)

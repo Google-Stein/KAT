@@ -7,7 +7,8 @@ import httpx
 
 from kat_core.endpoints import local_endpoint
 from kat_core.errors import ProviderErrorCode, ProviderFailure
-from kat_core.model_context import history, instructions
+from kat_core.memory_schemas import MemoryContextItem
+from kat_core.model_context import instructions, working_context
 from kat_core.provider import ToolDispatcher
 from kat_core.schemas import Message, ProviderStatus, SettingsUpdate
 from kat_core.tools import ToolRegistry
@@ -122,10 +123,11 @@ class OllamaRuntime:
         settings: SettingsUpdate,
         registry: ToolRegistry,
         dispatch: ToolDispatcher,
+        memory_context: list[MemoryContextItem] | None = None,
     ) -> str:
         context: list[dict[str, Any]] = [
             {"role": "system", "content": instructions(registry)},
-            *history(messages, budget=18000),
+            *working_context(messages, memory_context),
         ]
         async with self.client() as client:
             info = await self.request(client, "POST", "/api/show", {"model": settings.model})

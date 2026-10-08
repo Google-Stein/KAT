@@ -26,6 +26,7 @@ class Store:
         self._db.row_factory = sqlite3.Row
         with self._lock:
             self._db.execute("PRAGMA foreign_keys=ON")
+            self._db.execute("PRAGMA secure_delete=ON")
             try:
                 migrate(self._db, path)
                 self._db.execute("PRAGMA journal_mode=WAL")
@@ -80,7 +81,9 @@ class Store:
         )
         with self.transaction() as db:
             db.execute(
-                "INSERT INTO sessions VALUES (?,?,?,?)", tuple(session.model_dump().values())
+                "INSERT INTO sessions(id,title,created_at,updated_at,project_id) "
+                "VALUES (?,?,?,?,?)",
+                tuple(session.model_dump().values()),
             )
         return session
 

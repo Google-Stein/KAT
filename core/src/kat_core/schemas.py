@@ -17,6 +17,7 @@ class Session(StrictModel):
     title: str
     created_at: str
     updated_at: str
+    project_id: str | None = None
 
 
 class SessionCreate(StrictModel):
@@ -70,6 +71,7 @@ class SettingsUpdate(StrictModel):
     model: str = Field(default="gpt-4.1-mini", pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,119}$")
     require_approval_for_low_risk: bool = False
     local_endpoint: str = "http://127.0.0.1:11434"
+    memory_enabled: bool = False
 
     @field_validator("local_endpoint")
     @classmethod

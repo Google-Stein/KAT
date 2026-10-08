@@ -32,6 +32,7 @@ from openai import (
 )
 
 from kat_core.errors import ProviderErrorCode, ProviderFailure
+from kat_core.memory_schemas import MemoryContextItem
 from kat_core.model_context import history, instructions
 from kat_core.schemas import Message, SettingsUpdate
 from kat_core.tools import ToolRegistry
@@ -49,6 +50,7 @@ class ModelRuntime(Protocol):
         settings: SettingsUpdate,
         registry: ToolRegistry,
         dispatch: ToolDispatcher,
+        memory_context: list[MemoryContextItem] | None = None,
     ) -> str: ...
 
 
@@ -158,7 +160,10 @@ class OpenAIAgentsRuntime:
         settings: SettingsUpdate,
         registry: ToolRegistry,
         dispatch: ToolDispatcher,
+        memory_context: list[MemoryContextItem] | None = None,
     ) -> str:
+        # Defense in depth: this adapter never serializes memory, even if a caller
+        # mistakenly supplies it. Normal conversation history is still transmitted.
         if not self._api_key:
             raise ProviderUnavailableError()
         context = cast(list[TResponseInputItem], history(messages))

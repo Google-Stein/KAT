@@ -6,6 +6,8 @@ from collections.abc import Callable
 from pathlib import Path
 from uuid import uuid4
 
+from kat_core.memory_migration import memory_schema
+
 Migration = Callable[[sqlite3.Connection], None]
 
 
@@ -42,7 +44,7 @@ def local_provider_settings(db: sqlite3.Connection) -> None:
         db.execute("UPDATE settings SET value=? WHERE id=1", (json.dumps(settings),))
 
 
-MIGRATIONS: dict[int, Migration] = {1: foundation, 2: local_provider_settings}
+MIGRATIONS: dict[int, Migration] = {1: foundation, 2: local_provider_settings, 3: memory_schema}
 
 
 def migrate(

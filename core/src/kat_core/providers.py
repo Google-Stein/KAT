@@ -4,6 +4,7 @@ from collections.abc import Callable
 
 from kat_core.errors import ProviderFailure
 from kat_core.local_provider import OllamaRuntime
+from kat_core.memory_schemas import MemoryContextItem
 from kat_core.provider import ModelRuntime, OpenAIAgentsRuntime, ToolDispatcher
 from kat_core.schemas import (
     Message,
@@ -78,5 +79,9 @@ class SelectedRuntime:
         settings: SettingsUpdate,
         registry: ToolRegistry,
         dispatch: ToolDispatcher,
+        memory_context: list[MemoryContextItem] | None = None,
     ) -> str:
-        return await self.registry.get(settings).respond(messages, settings, registry, dispatch)
+        runtime = self.registry.get(settings)
+        if settings.provider == "ollama" and memory_context:
+            return await runtime.respond(messages, settings, registry, dispatch, memory_context)
+        return await runtime.respond(messages, settings, registry, dispatch)

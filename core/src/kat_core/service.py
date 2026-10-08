@@ -6,6 +6,8 @@ import logging
 from typing import Any
 
 from kat_core.errors import ProviderErrorCode, ProviderFailure
+from kat_core.memory_retrieval import MemoryRetrieval
+from kat_core.memory_store import MemoryStore
 from kat_core.permissions import PermissionPolicy
 from kat_core.provider import ModelRuntime, ProviderUnavailableError
 from kat_core.schemas import Approval, ChatResponse
@@ -40,6 +42,13 @@ class ChatService:
         async with lock:
             settings = self.store.settings()
             user_message = self.store.add_message(session_id, "user", content)
+            session = self.store.session(session_id)
+            retrieval = MemoryRetrieval(MemoryStore(self.store))
+            memory_context = (
+                retrieval.retrieve(content, session.project_id if session else None)
+                if settings.memory_enabled and settings.provider == "ollama"
+                else []
+            )
             created_approvals: list[str] = []
 
             async def dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -107,9 +116,18 @@ class ChatService:
 
             try:
                 async with asyncio.timeout(120):
-                    text = await self.runtime.respond(
-                        self.store.messages(session_id), settings, self.registry, dispatch
-                    )
+                    if memory_context:
+                        text = await self.runtime.respond(
+                            self.store.messages(session_id),
+                            settings,
+                            self.registry,
+                            dispatch,
+                            memory_context,
+                        )
+                    else:
+                        text = await self.runtime.respond(
+                            self.store.messages(session_id), settings, self.registry, dispatch
+                        )
             except Exception as error:
                 failure = (
                     error
@@ -131,6 +149,7 @@ class ChatService:
                 )
                 raise failure from None
             assistant = self.store.add_message(session_id, "assistant", text)
+            retrieval.record_usage(memory_context, session_id, assistant.id)
             approvals = [self.store.approval(approval_id) for approval_id in created_approvals]
             return ChatResponse(
                 user_message=user_message,
