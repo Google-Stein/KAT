@@ -5,6 +5,7 @@ On other platforms, validates the application approval but does not launch it.
 """
 
 import argparse
+import json
 import os
 import tempfile
 from datetime import datetime
@@ -76,10 +77,26 @@ def main() -> None:
                     ]
 
                 timestamps = []
-                for _ in range(2):
+                for attempt in range(1, 3):
                     previous = {event["id"] for event in time_results()}
-                    chat("Tell me the time.")
+                    response = chat("Tell me the time.")
                     fresh = [event for event in time_results() if event["id"] not in previous]
+                    if len(fresh) != 1 and os.environ.get("GITHUB_ACTIONS") == "true":
+                        # Disposable, self-created test session: never owner chat,
+                        # credentials or raw HTTP headers. JSON escapes control text.
+                        print(
+                            json.dumps(
+                                {
+                                    "test": "fresh-time",
+                                    "attempt": attempt,
+                                    "fresh_results": len(fresh),
+                                    "assistant_reply": response["assistant_message"]["content"][
+                                        :1000
+                                    ],
+                                }
+                            ),
+                            flush=True,
+                        )
                     assert len(fresh) == 1, "Repeated time request did not invoke a fresh tool"
                     assert fresh[0]["details"]["status"] == "completed"
                     timestamps.append(datetime.fromisoformat(fresh[0]["details"]["result"]["iso"]))
