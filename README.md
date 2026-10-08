@@ -17,7 +17,7 @@ docs/                    Product, architecture, security, decisions, roadmap, va
 
 ## Windows development
 
-Install Python 3.12+, Node.js 24 LTS (22.12+ is also supported), Rust stable (1.90+), Microsoft C++ Build Tools with the **Desktop development with C++** workload and a Windows SDK, and the Microsoft Edge WebView2 runtime. The standard Tauri Windows prerequisites apply. Use a PowerShell terminal that can find `python`, `node`, `npm`, and `cargo`.
+Install Python 3.12.x, Node.js 24 LTS (22.12+ is also supported), Rust stable (1.90+), Microsoft C++ Build Tools with the **Desktop development with C++** workload and a Windows SDK, and the Microsoft Edge WebView2 runtime. The standard Tauri Windows prerequisites apply. Use a PowerShell terminal that can find `python`, `node`, `npm`, and `cargo`.
 
 ```powershell
 git clone https://github.com/Google-Stein/KAT.git
@@ -56,7 +56,7 @@ Close a manually running Core/desktop first: the desktop owns port 42800 and ref
 `uv` is the dependency/virtual-environment manager. Install it from its official distribution if it is not available. From the repository root:
 
 ```bash
-uv sync --project core --frozen --group dev
+uv sync --project core --python 3.12 --frozen --group dev
 mkdir -p .local
 uv run --project core python -m kat_core --env-file .env --data-dir .local/data --token-file .local/api-token
 ```
@@ -136,3 +136,9 @@ For measured results from this implementation environment and unverified externa
 ## Trusted application configuration
 
 Windows defaults register Notepad and Calculator when their system executables exist. A trusted owner can replace that list with `KAT_APPLICATION_ALLOWLIST_JSON`, a JSON array of objects with `id`, `label`, an existing absolute `executable`, and optional fixed `arguments`. For example, `[]` disables all application launching. This is configuration outside the model/API, not a way for the model to register executables. Restart Core after changes. Shells, interpreters, scripts, and network paths are rejected; Windows registrations must resolve to native `.exe` files. Only IDs reach the model and approval UI. Treat custom registrations as executable capabilities: choose harmless applications and bounded arguments.
+
+## Supported Python runtime
+
+KAT Core's language minimum is Python 3.12. KAT 0.1 development, tests and release packaging use **CPython 3.12.x exclusively**; later minor versions are not certified. Root and Core `.python-version` files select 3.12 for uv and GitHub Actions. Patch updates within 3.12 receive the same tests. CI passes the exact `setup-python` executable to Windows setup; local setup uses a matching PATH interpreter or `py -3.12`, never `py -3`. You can pass `-PythonExecutable C:\path\to\Python312\python.exe` to setup/build. An existing incompatible Core venv is rejected; remove only `core/.venv` and rerun setup to replace it. PyInstaller always runs through that validated Core venv, including with `-SkipSetup`.
+
+A green Windows CI job is the KAT 0.1 release gate. `smoke-windows.ps1` verifies a real main window, native bearer-authenticated health evidence, unauthenticated rejection, exact parent/child/listener ownership, normal close cleanup and forced termination cleanup. It preserves diagnostics under `.local/windows-smoke`; CI uploads these even on failure. Native startup stages are recorded in `%LOCALAPPDATA%\com.kat.assistant\logs\desktop.log`, alongside `desktop-core.log` and `core.log`. Tokens are never included in these reports.

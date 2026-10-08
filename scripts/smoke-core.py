@@ -47,16 +47,19 @@ def start(executable: Path, data: Path, token_file: Path, port: int) -> subproce
     args = [str(executable)]
     if executable.name.lower().startswith("python"):
         args += ["-m", "kat_core"]
-    process = subprocess.Popen(
-        [*args, "--data-dir", str(data), "--token-file", str(token_file), "--port", str(port)],
-        env=environment,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    startup_log = data.parent / "core-startup.log"
+    with startup_log.open("ab") as output:
+        process = subprocess.Popen(
+            [*args, "--data-dir", str(data), "--token-file", str(token_file), "--port", str(port)],
+            env=environment,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+        )
     deadline = time.monotonic() + 35
     while time.monotonic() < deadline:
         if process.poll() is not None:
-            raise RuntimeError(f"Core exited during startup (exit {process.returncode})")
+            details = startup_log.read_text(errors="replace")[-6000:]
+            raise RuntimeError(f"Core exited during startup (exit {process.returncode})\n{details}")
         if token_file.exists():
             try:
                 health = request(
@@ -80,7 +83,8 @@ def stop(process: subprocess.Popen[bytes]) -> None:
         process.kill()
         process.wait(timeout=5)
         raise RuntimeError("Core required forced shutdown") from None
-    if process.returncode not in (0, -15):
+    expected = (0, 1) if os.name == "nt" else (0, -15)
+    if process.returncode not in expected:
         raise RuntimeError(f"Core shutdown failed (exit {process.returncode})")
 
 

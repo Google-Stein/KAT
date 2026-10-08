@@ -117,3 +117,9 @@ DISPLAY=:91 import -window root .local/native-smoke/restarted-screenshot.png
 ```
 
 No localhost preview link was created. Xvfb has no TCP listener; this is an internal test display, not a published application endpoint. Native/Core/Xvfb processes used in validation were stopped afterwards.
+
+## Windows stabilization release gate (in progress)
+
+The first published workflow, [run 37693164653](https://github.com/Google-Stein/KAT/actions/runs/37693164653), tested foundation commit `f6292325f0172036bcb54f10e93ae1ccc5d432a8`. Core and desktop jobs passed. Windows packaging passed, but the desktop startup smoke failed; the original combined timeout gave no stage-specific diagnostics. This is a failed release gate, not Windows runtime validation. The owner reported that packaging selected Python 3.14.7 via `py -3` despite CI selecting 3.12. That runtime-selection defect is confirmed; its causal relationship to the startup failure remains under investigation.
+
+Stabilization pins CPython 3.12.x, records native startup stages without secrets, verifies authenticated readiness evidence with exact process/listener ownership, and preserves CI failure logs. The 45-second desktop deadline remains unchanged. Local stabilization checks passed: 83 Python tests, 15 frontend tests, 9 native unit tests, 3 explicit native service integration tests, standalone and packaged Core restart smoke, Ruff/format/mypy, frontend lint/format/type/build, full Windows target compile check, native formatting and Clippy. Windows execution results will be recorded only after the corrected workflow actually runs.

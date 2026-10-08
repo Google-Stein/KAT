@@ -1,4 +1,4 @@
-param()
+param([string] $PythonExecutable = "")
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $RepoRoot = Split-Path -Parent $PSScriptRoot
@@ -12,22 +12,28 @@ function Assert-Exit([string] $Step) {
     if ($LASTEXITCODE -ne 0) { throw "$Step failed (exit $LASTEXITCODE)." }
 }
 
+function Assert-Python312([string] $Executable) {
+    & $Executable -c 'import sys; print("KAT build Python:", sys.version, "at", sys.executable); sys.exit(sys.version_info[:2] != (3, 12))'
+    if ($LASTEXITCODE -ne 0) { throw "KAT 0.1 builds require Python 3.12.x. Incompatible environment: $Executable. Remove only core/.venv and rerun setup with -PythonExecutable pointing to Python 3.12." }
+}
+
+if ($PythonExecutable) {
+    Assert-Python312 $PythonExecutable
+} elseif (Get-Command python -ErrorAction SilentlyContinue) {
+    & python -c 'import sys; sys.exit(sys.version_info[:2] != (3, 12))'
+    if ($LASTEXITCODE -eq 0) { $PythonExecutable = (Get-Command python).Source }
+}
+if (-not $PythonExecutable -and (Get-Command py -ErrorAction SilentlyContinue)) {
+    $PythonExecutable = & py -3.12 -c 'import sys; print(sys.executable)'
+    Assert-Exit 'Python 3.12 launcher selection'
+}
+if (-not $PythonExecutable) { throw 'Install Python 3.12.x or pass -PythonExecutable with its full path.' }
+Assert-Python312 $PythonExecutable
 if (-not (Test-Path $Python)) {
-    if (Get-Command py -ErrorAction SilentlyContinue) {
-        & py -3 -c 'import sys; sys.exit(sys.version_info < (3, 12))'
-        Assert-Exit 'Python version check'
-        & py -3 -m venv (Join-Path $CoreRoot '.venv')
-    } elseif (Get-Command python -ErrorAction SilentlyContinue) {
-        & python -c 'import sys; sys.exit(sys.version_info < (3, 12))'
-        Assert-Exit 'Python version check'
-        & python -m venv (Join-Path $CoreRoot '.venv')
-    } else {
-        throw 'Install Python 3.12+ with the Python launcher, then run setup again.'
-    }
+    & $PythonExecutable -m venv (Join-Path $CoreRoot '.venv')
     Assert-Exit 'Python virtual environment creation'
 }
-& $Python -c 'import sys; sys.exit(sys.version_info < (3, 12))'
-Assert-Exit 'Virtual environment version check'
+Assert-Python312 $Python
 if (-not (Test-Path $Uv)) {
     # Keep uv outside the dependency-managed Core environment so sync cannot
     # remove its own running executable (which Windows locks).
@@ -36,7 +42,7 @@ if (-not (Test-Path $Uv)) {
     & $UvPython -m pip install 'uv>=0.8,<1'
     Assert-Exit 'uv installation'
 }
-& $Uv sync --project $CoreRoot --frozen --group dev
+& $Uv sync --project $CoreRoot --python $Python --frozen --group dev
 Assert-Exit 'Locked Python dependency installation'
 
 if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {

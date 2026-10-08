@@ -31,3 +31,7 @@
 ## ADR 008: Test without pretending external access
 
 **Accepted.** Automated provider tests use injected fakes and mocked SDK transport, with real argument validation, persistence, approval, and API logic. Live OpenAI verification requires a valid key and network access; its absence must be reported. Windows startup requires a Windows runner. All verification claims must identify which environment and integration were actually exercised.
+
+## ADR 009: Certified Python runtime and Windows release gate
+
+**Accepted.** KAT 0.1 uses CPython 3.12.x for local setup, dependency installation, tests and PyInstaller packaging. Core retains a 3.12 language minimum, but newer minor interpreters are not certified until an explicit compatibility decision and Windows validation. CI supplies its selected executable; setup rejects incompatible existing environments. Windows launch, authentication, process ownership and both shutdown paths must pass on the packaged executable before the foundation is called Windows validated. Persistent startup logs expose phases and PIDs without bearer credentials.

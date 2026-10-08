@@ -5,15 +5,40 @@ use serde::Serialize;
 mod linux_guardian;
 use std::{
     fs::{self, OpenOptions},
+    io::Write,
     net::TcpListener,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 pub const CORE_PORT: u16 = 42800;
 pub const CORE_BASE_URL: &str = "http://127.0.0.1:42800";
+
+/// Startup/lifecycle evidence contains no credentials or conversation content.
+pub fn log_event(data_dir: &Path, stage: &str, detail: &str) {
+    let directory = data_dir.join("logs");
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let result = fs::create_dir_all(&directory).and_then(|()| {
+        let mut log = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(directory.join("desktop.log"))?;
+        writeln!(
+            log,
+            "timestamp={timestamp} desktop_pid={} stage={stage} {}",
+            std::process::id(),
+            detail.replace(['\n', '\r'], " ")
+        )
+    });
+    if let Err(error) = result {
+        eprintln!("Cannot write desktop diagnostic log: {error}");
+    }
+}
 
 /// This value is sent only to the trusted local webview and never logged.
 #[derive(Clone, Serialize)]
@@ -101,6 +126,11 @@ pub struct CoreProcess {
 
 impl CoreProcess {
     pub fn start(spec: &LaunchSpec, data_dir: &Path) -> Result<Self, String> {
+        log_event(
+            data_dir,
+            "core_start",
+            &format!("executable={}", spec.executable.display()),
+        );
         ensure_port_available(CORE_PORT)?;
         let token = new_token()?;
         let log_dir = data_dir.join("logs");
@@ -146,6 +176,11 @@ impl CoreProcess {
         let (child, guardian) = spawned;
         #[cfg(not(target_os = "linux"))]
         let child = spawned;
+        log_event(
+            data_dir,
+            "core_spawned",
+            &format!("core_pid={}", child.id()),
+        );
         #[cfg(windows)]
         let job = match WindowsJob::attach(&child) {
             Ok(job) => job,
@@ -173,6 +208,14 @@ impl CoreProcess {
             Duration::from_secs(25),
         )
         .map_err(|error| format!("{error} See {} for details.", log_path.display()))?;
+        log_event(
+            data_dir,
+            "core_ready",
+            &format!(
+                "core_pid={} authenticated=true port={CORE_PORT}",
+                process.child.id()
+            ),
+        );
         Ok(process)
     }
 
@@ -329,6 +372,24 @@ mod tests {
         assert!(error.contains("Close another KAT instance"));
         drop(listener);
         assert!(ensure_port_available(0).is_ok());
+    }
+
+    #[test]
+    fn startup_evidence_has_identity_and_single_line_detail() {
+        let data = temp_dir();
+        log_event(
+            &data,
+            "core_ready",
+            "core_pid=123 authenticated=true\nnext line",
+        );
+        let evidence = fs::read_to_string(data.join("logs/desktop.log")).unwrap();
+        assert_eq!(evidence.lines().count(), 1);
+        assert!(evidence.contains(&format!(
+            "desktop_pid={} stage=core_ready",
+            std::process::id()
+        )));
+        assert!(evidence.contains("core_pid=123 authenticated=true next line"));
+        fs::remove_dir_all(data).unwrap();
     }
 
     #[test]

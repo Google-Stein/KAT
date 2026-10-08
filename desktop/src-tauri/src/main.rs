@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use kat_desktop::{development_spec, packaged_spec, CoreConnection, CoreProcess};
+use kat_desktop::{development_spec, log_event, packaged_spec, CoreConnection, CoreProcess};
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -35,6 +35,7 @@ impl Runtime {
                 Ok(connection)
             }
             Err(error) => {
+                log_event(&self.data_dir, "core_failed", &error);
                 self.startup_error = Some(error.clone());
                 Err(error)
             }
@@ -75,6 +76,11 @@ fn main() {
     let application = tauri::Builder::default()
         .setup(|app| {
             let data_dir = app.path().app_local_data_dir()?;
+            log_event(
+                &data_dir,
+                "desktop_start",
+                "initializing owned Core and window",
+            );
             let source = if !cfg!(feature = "custom-protocol") {
                 let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                     .parent()
@@ -90,10 +96,11 @@ fn main() {
                 process: None,
                 startup_error: None,
                 source,
-                data_dir,
+                data_dir: data_dir.clone(),
             };
             let _ = runtime.restart();
             app.manage(Arc::new(Mutex::new(runtime)));
+            log_event(&data_dir, "window_creating", "WebView2 initialization");
             WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("KAT")
                 .inner_size(1100.0, 780.0)
@@ -110,7 +117,11 @@ fn main() {
                             && url.port() == Some(1420))
                 })
                 .on_new_window(|_, _| tauri::webview::NewWindowResponse::Deny)
-                .build()?;
+                .build()
+                .inspect_err(|error| {
+                    log_event(&data_dir, "window_failed", &error.to_string());
+                })?;
+            log_event(&data_dir, "window_ready", "native window created");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![core_connection, restart_core])
@@ -121,6 +132,7 @@ fn main() {
         if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
             if let Some(state) = app.try_state::<ManagedRuntime>() {
                 if let Ok(mut runtime) = state.lock() {
+                    log_event(&runtime.data_dir, "desktop_exit", "stopping owned Core");
                     runtime.process.take();
                 }
             }
