@@ -14,7 +14,7 @@
 
 ## ADR 004: Durable approval instead of blocked runs
 
-**Accepted.** Persist approval requests and return their status as a tool result. The UI decides through a separate endpoint; outcomes enter the transcript and audit log. This avoids keeping model runs suspended in volatile memory and supports restart recovery. The model continues on the next turn, rather than automatically generating another reply when the user clicks Allow.
+**Accepted.** Persist approval requests and return their status as a tool result. The UI decides through a separate endpoint; outcomes enter the transcript and audit log. This avoids keeping model runs suspended in volatile memory and supports restart recovery. Approval updates its card without automatically generating another model reply. ADR 017 excludes historical tool outcomes from later inference.
 
 ## ADR 005: Local authenticated process lifecycle
 
@@ -100,3 +100,20 @@ polish. [MEMORY_DESIGN_PROPOSAL.md](MEMORY_DESIGN_PROPOSAL.md) recommends explic
 owner confirmation, scoped provenance, inspect/edit/forget, lexical retrieval
 before vectors, local processing and no cloud memory context in the first slice.
 These are proposals requiring owner decisions, not implementation authorization.
+
+## ADR 017: Historical tool outcomes are transcript data, not inference evidence
+
+**Accepted for 0.2.1.** The shared history builder omits persisted `role="tool"`
+messages instead of disguising them as user assertions. These records have no
+matching assistant tool-call event; transient timestamps and completed side effects
+must not be reused to satisfy a new request. Keep the full SQLite transcript,
+approval state, audit and UI unchanged. Keep ordinary user/assistant dialogue;
+shared instructions require a fresh time/action call for each new request.
+
+OpenAI SDK and Ollama continue receiving real tool results inside the active loop
+with their corresponding calls. Approval still runs outside that loop, updates
+the UI, and requires a new approval for a later action. No result cache, intent
+heuristic, provider-specific workaround or database migration is introduced.
+Regression tests reproduce the old stale-time answer on both wire protocols and
+cover fresh time results and repeated Notepad/Calculator approvals. Actual installed
+Ollama validation separately tests model selection, execution and window creation.

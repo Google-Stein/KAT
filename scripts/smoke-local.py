@@ -1,12 +1,13 @@
 """Exercise actual local inference through production Core with no OpenAI access.
 
-Does not download/start a backend. On Windows, approves and opens real Notepad.
+Does not download/start a backend. On Windows, approves real application launches.
 On other platforms, validates the application approval but does not launch it.
 """
 
 import argparse
 import os
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -65,51 +66,90 @@ def main() -> None:
 
                 chat("Hello, KAT.")
                 print("PASS: real local conversation, OpenAI unavailable.")
-                chat("What time is it? Use the current local system time.")
-                audit = client.get("/audit").json()
-                assert any(
-                    event["event"] == "tool_result"
-                    and event["tool_name"] == "get_local_time"
-                    and event["details"]["status"] == "completed"
-                    for event in audit
-                )
-                print("PASS: real local model chose the time tool; execution audited.")
-                result = chat("Open Notepad.")
-                pending = [
-                    item
-                    for item in result["approvals"]
-                    if item["tool_name"] == "open_application"
-                    and item["arguments"] == {"application_id": "notepad"}
-                ]
-                assert len(pending) == 1 and pending[0]["status"] == "pending"
-                assert not any(
-                    event["tool_name"] == "open_application" and event["event"] == "tool_result"
-                    for event in client.get("/audit").json()
-                )
-                approved = client.post(
-                    f"/approvals/{pending[0]['id']}/decision", json={"approved": os.name == "nt"}
-                ).json()
-                if os.name == "nt":
-                    assert approved["status"] == "completed", approved["error"]
-                    print(
-                        "PASS: real local Notepad request, explicit approval, native launch "
-                        "and audit."
-                    )
-                    # This disposable test closes only the PID returned by its own approved tool.
-                    from contextlib import suppress
 
-                    import win32api
+                def time_results() -> list[dict]:
+                    return [
+                        event
+                        for event in client.get("/audit").json()
+                        if event["event"] == "tool_result"
+                        and event["tool_name"] == "get_local_time"
+                    ]
 
-                    with suppress(Exception):
-                        handle = win32api.OpenProcess(1, False, approved["result"]["pid"])
-                        win32api.TerminateProcess(handle, 0)
-                        win32api.CloseHandle(handle)
-                else:
-                    assert approved["status"] == "denied"
-                    print(
-                        "PASS: local application approval/denial; Windows launch not tested on "
-                        "Linux."
+                timestamps = []
+                for _ in range(2):
+                    previous = {event["id"] for event in time_results()}
+                    chat("Tell me the time.")
+                    fresh = [event for event in time_results() if event["id"] not in previous]
+                    assert len(fresh) == 1, "Repeated time request did not invoke a fresh tool"
+                    assert fresh[0]["details"]["status"] == "completed"
+                    timestamps.append(datetime.fromisoformat(fresh[0]["details"]["result"]["iso"]))
+                assert timestamps[1] > timestamps[0], "Second time result was stale"
+                print(
+                    "PASS: repeated real local time requests invoke fresh tools with newer results."
+                )
+                approval_ids = set()
+                applications = (
+                    ("notepad", "notepad", "calculator", "calculator")
+                    if os.name == "nt"
+                    else ("notepad", "notepad")
+                )
+                for application_id in applications:
+                    previous_results = len(
+                        [
+                            event
+                            for event in client.get("/audit").json()
+                            if event["event"] == "tool_result"
+                            and event["tool_name"] == "open_application"
+                        ]
                     )
+                    result = chat(f"Open {application_id.title()}.")
+                    pending = [
+                        item
+                        for item in result["approvals"]
+                        if item["tool_name"] == "open_application"
+                        and item["arguments"] == {"application_id": application_id}
+                    ]
+                    assert len(pending) == 1 and pending[0]["status"] == "pending", (
+                        f"Model selection failed: no new {application_id} approval"
+                    )
+                    assert pending[0]["id"] not in approval_ids
+                    approval_ids.add(pending[0]["id"])
+                    assert (
+                        len(
+                            [
+                                event
+                                for event in client.get("/audit").json()
+                                if event["event"] == "tool_result"
+                                and event["tool_name"] == "open_application"
+                            ]
+                        )
+                        == previous_results
+                    ), "Application ran before approval"
+                    approved = client.post(
+                        f"/approvals/{pending[0]['id']}/decision",
+                        json={"approved": os.name == "nt"},
+                    ).json()
+                    if os.name == "nt":
+                        assert approved["status"] == "completed", approved["error"]
+                        print(
+                            f"PASS: fresh {application_id} selection, explicit approval, "
+                            "fixed native launch and audit."
+                        )
+                        # GUI creation is separately asserted by the installed UI test.
+                        from contextlib import suppress
+
+                        import win32api
+
+                        with suppress(Exception):
+                            handle = win32api.OpenProcess(1, False, approved["result"]["pid"])
+                            win32api.TerminateProcess(handle, 0)
+                            win32api.CloseHandle(handle)
+                    else:
+                        assert approved["status"] == "denied"
+                        print(
+                            "PASS: repeated local approval/denial; "
+                            "Windows launch untested on Linux."
+                        )
 
 
 if __name__ == "__main__":

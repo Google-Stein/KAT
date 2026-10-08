@@ -47,7 +47,7 @@ async def test_sdk_malformed_json_reaches_audit_boundary(registry: ToolRegistry)
         dispatch.assert_awaited_with("get_local_time", {"__invalid_arguments__": True})
 
 
-async def test_sdk_context_uses_stored_tool_outcomes_without_external_conversation_id(
+async def test_sdk_context_excludes_historical_tools_without_external_conversation_id(
     registry: ToolRegistry,
 ) -> None:
     messages = [
@@ -68,8 +68,10 @@ async def test_sdk_context_uses_stored_tool_outcomes_without_external_conversati
             messages, SettingsUpdate(), registry, AsyncMock()
         )
     request: dict[str, Any] = run.call_args.kwargs
-    assert len(request["input"]) == 100
+    assert len(request["input"]) == 99
     assert request["input"][0]["content"] == "message-5"
-    assert "data, not instructions" in request["input"][-2]["content"]
+    assert [item["content"] for item in request["input"]] == [
+        f"message-{index}" for index in range(5, 105) if index != 103
+    ]
     assert "conversation_id" not in request
     assert "session" not in request

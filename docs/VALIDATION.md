@@ -334,3 +334,32 @@ real inference evidence comes from the Windows runner, not an invented Linux/GPU
 result. Release installers remain unsigned, automatic updates are absent, and
 interactive upgrade UX is not certified. Local SQLite/backups are not encrypted
 by KAT. No semantic memory has been implemented; review the memory proposal first.
+
+## 0.2.1 stale-tool-context hotfix — Windows gate pending
+
+The owner reported a repeated 09:54 answer with no second `get_local_time` request.
+The new deterministic HTTP-protocol regression reproduced that stale answer on
+both OpenAI Agents SDK and Ollama before the fix (two expected failures). Promoting
+persisted tool messages into user text exposed old outcomes without their matching
+assistant tool calls. The shared history builder now omits those records from
+future inference; active loop results, SQLite, approval cards, transcript and audit
+are preserved. Shared instructions require new time/action calls on new requests.
+
+The owner checked the failed Calculator attempt's Activity/approvals and reported
+**no Calculator tool request**. That attempt was a model-selection failure, not an
+observed Windows launcher failure. Tests now cover Calculator after earlier time
+and Notepad activity and repeated Calculator requests. The production allowlist,
+fixed native `.exe` launch, shell restrictions and approvals are unchanged.
+
+Cloud checks passed: **146 Python tests**, including both actual provider wire
+protocol regressions with mocked model decisions, Core Ruff/format/strict mypy,
+version metadata consistency, real standalone Core authentication/persistence/
+restart/shutdown, **26 frontend tests**, ESLint/Prettier/TypeScript/Vite build,
+**20 native unit tests** (4 deliberate integration/fixture ignores), full native
+Clippy with warnings denied, and all **13 PowerShell diagnostic checks**.
+The installed Windows gate is being extended to assert two identical time
+requests produce distinct newer results, two identical Notepad requests create
+distinct approvals/windows, and Calculator selection/approval/native window
+creation. Real Ollama Core validation also repeats Calculator. Deterministic
+transport tests are not live local-model validation. Release/tag publication must
+wait for a successful current-source Core, desktop and Windows workflow.

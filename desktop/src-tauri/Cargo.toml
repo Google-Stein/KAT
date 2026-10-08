@@ -1,6 +1,6 @@
 [package]
 name = "kat-desktop"
-version = "0.2.0"
+version = "0.2.1"
 description = "KAT local-first desktop shell"
 authors = ["KAT contributors"]
 edition = "2021"

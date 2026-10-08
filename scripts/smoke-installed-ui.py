@@ -12,6 +12,7 @@ import sqlite3
 import subprocess
 import time
 from contextlib import suppress
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -61,7 +62,7 @@ def main() -> None:
         environment.pop(name, None)
     process = None
     window = None
-    notepad_window = None
+    application_windows: list[int] = []
     stage = "installed-startup"
 
     def rows(query: str, parameters: tuple = ()) -> list[dict[str, Any]]:
@@ -236,65 +237,93 @@ def main() -> None:
         assert rows(
             "SELECT id FROM messages WHERE session_id=? AND role='assistant'", (session_id,)
         )
-        send("What time is it?")
-        events = rows(
-            "SELECT details FROM audit WHERE session_id=? AND event='tool_result' "
-            "AND tool_name='get_local_time'",
-            (session_id,),
-        )
-        assert any(json.loads(event["details"])["status"] == "completed" for event in events)
+
+        def time_results() -> list[dict[str, Any]]:
+            return rows(
+                "SELECT id,details FROM audit WHERE session_id=? AND event='tool_result' "
+                "AND tool_name='get_local_time'",
+                (session_id,),
+            )
+
+        timestamps = []
+        for _ in range(2):
+            previous = {event["id"] for event in time_results()}
+            send("Tell me the time.")
+            fresh = [event for event in time_results() if event["id"] not in previous]
+            assert len(fresh) == 1, "Repeated time request did not invoke a fresh tool"
+            outcome = json.loads(fresh[0]["details"])
+            assert outcome["status"] == "completed"
+            timestamps.append(datetime.fromisoformat(outcome["result"]["iso"]))
+        assert timestamps[1] > timestamps[0], "Second installed time result was stale"
         print(
             "PASS: installed production UI generates real local conversation "
-            "and executes/audits the time tool.",
+            "and executes/audits a fresh time tool on each identical request.",
             flush=True,
         )
 
-        stage = "notepad-approval"
-        previous_windows = set()
-        win32gui.EnumWindows(lambda hwnd, _: previous_windows.add(hwnd), None)
-        textarea = composer()
-        textarea.set_focus()
-        textarea.type_keys("Open Notepad.", with_spaces=True)
-        button("Send message").click_input()
-        wait_for(
-            lambda: window.child_window(title="Allow once", control_type="Button").exists(), 180
-        )
-        pending = rows(
-            "SELECT * FROM approvals WHERE session_id=? AND status='pending' "
-            "AND tool_name='open_application'",
-            (session_id,),
-        )
-        assert len(pending) == 1 and json.loads(pending[0]["arguments"]) == {
-            "application_id": "notepad"
-        }
-        button("Allow once").click_input()
-        wait_for(
-            lambda: rows(
-                "SELECT id FROM approvals WHERE id=? AND status='completed'", (pending[0]["id"],)
+        approval_ids = set()
+        for application_id in ("notepad", "notepad", "calculator"):
+            stage = f"{application_id}-selection-and-approval"
+            previous_windows = set()
+            win32gui.EnumWindows(lambda hwnd, _, seen=previous_windows: seen.add(hwnd), None)
+            send(f"Open {application_id.title()}.")
+            pending = rows(
+                "SELECT * FROM approvals WHERE session_id=? AND status='pending' "
+                "AND tool_name='open_application'",
+                (session_id,),
             )
-        )
-
-        def find_notepad() -> Any:
-            found = []
-            win32gui.EnumWindows(
-                lambda hwnd, _: (
-                    found.append(hwnd)
-                    if hwnd not in previous_windows
-                    and win32gui.IsWindowVisible(hwnd)
-                    and win32gui.GetClassName(hwnd) == "Notepad"
-                    else None
-                ),
-                None,
+            assert len(pending) == 1, "Model did not request a new application approval"
+            assert json.loads(pending[0]["arguments"]) == {"application_id": application_id}
+            assert pending[0]["id"] not in approval_ids
+            approval_ids.add(pending[0]["id"])
+            assert not rows(
+                "SELECT id FROM audit WHERE approval_id=? AND event='tool_result'",
+                (pending[0]["id"],),
+            ), "Application ran before UI approval"
+            button("Allow once").click_input()
+            stage = f"{application_id}-native-execution"
+            wait_for(
+                lambda approval=pending[0]["id"]: rows(
+                    "SELECT id FROM approvals WHERE id=? AND status='completed'", (approval,)
+                )
             )
-            return found[0] if found else None
 
-        notepad_window = wait_for(find_notepad, 10)
+            def find_application(seen: set = previous_windows, app_id: str = application_id) -> Any:
+                found = []
+                win32gui.EnumWindows(
+                    lambda hwnd, _: (
+                        found.append(hwnd)
+                        if hwnd not in seen
+                        and win32gui.IsWindowVisible(hwnd)
+                        and (
+                            win32gui.GetClassName(hwnd) == "Notepad"
+                            if app_id == "notepad"
+                            else win32gui.GetWindowText(hwnd) == "Calculator"
+                        )
+                        else None
+                    ),
+                    None,
+                )
+                return found[0] if found else None
+
+            stage = f"{application_id}-window-creation"
+            application_windows.append(wait_for(find_application, 10))
+            print(f"PASS: new {application_id} approval and actual application window.", flush=True)
+
+        tools = rows(
+            "SELECT content FROM messages WHERE session_id=? AND role='tool'", (session_id,)
+        )
+        assert len(tools) == 5, "Historical outcomes disappeared from the installed transcript"
         close()
-        assert win32gui.IsWindow(notepad_window), "Approved Notepad was killed on KAT close"
-        win32gui.PostMessage(notepad_window, 0x0010, 0, 0)
-        notepad_window = None
+        assert all(win32gui.IsWindow(hwnd) for hwnd in application_windows), (
+            "Approved app was killed on KAT close"
+        )
+        for hwnd in application_windows:
+            win32gui.PostMessage(hwnd, 0x0010, 0, 0)
+        application_windows.clear()
         print(
-            "PASS: actual Notepad window opens after UI approval and survives normal KAT close.",
+            "PASS: both Notepad windows and Calculator survive normal KAT close; "
+            "historical outcomes persist.",
             flush=True,
         )
 
@@ -315,9 +344,9 @@ def main() -> None:
         print(f"FAIL: installed UI stage={stage} exception_type={type(error).__name__}", flush=True)
         raise SystemExit(1) from None
     finally:
-        if notepad_window:
+        for hwnd in application_windows:
             with suppress(Exception):
-                win32gui.PostMessage(notepad_window, 0x0010, 0, 0)
+                win32gui.PostMessage(hwnd, 0x0010, 0, 0)
         if process and process.poll() is None:
             process.kill()
             process.wait(timeout=15)

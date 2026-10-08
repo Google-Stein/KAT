@@ -40,8 +40,9 @@ The explicit real-backend Core smoke command is:
 .\core\.venv\Scripts\python.exe .\scripts\smoke-local.py --model qwen3:1.7b
 ```
 
-It requires an already running backend/model and on Windows launches Notepad after
-its test approval. `test-local-windows.ps1` is a disposable CI helper that explicitly
+It requires an already running backend/model and on Windows tests repeated time,
+Notepad and Calculator requests, each application launch after its own test approval.
+`test-local-windows.ps1` is a disposable CI helper that explicitly
 downloads a checksum-verified runtime (~1.47 GB) and weights (~1.4 GB).
 `smoke-installed-ui.py` uses normal Windows accessibility and synthetic native
 key input **only in a disposable Windows CI account**. It enables no debugging
@@ -80,7 +81,7 @@ Development starts Vite and Tauri. Tauri launches the Core virtual environment, 
 
 If PowerShell blocks local scripts, use the policy approved for your machine; for example, `powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1` runs that single local script without changing the machine policy.
 
-To try the tools, ask "What time is it here?" or "Open Notepad." Review the application ID in the approval card and select Allow or Deny. Only applications shown in Settings are available. Tool outcomes are recorded in the transcript and Audit screen. Approval executes the action; the next chat turn lets the model discuss its result.
+To try the tools, ask "What time is it here?" or "Open Notepad." Review the application ID in the approval card and select Allow or Deny. Only applications shown in Settings are available. Tool outcomes are recorded in the transcript and Audit screen. Approval executes the action and updates its card. Historical tool records are excluded from later model context; every new action requires a fresh tool request and approval. Current tool-loop results still reach the model immediately.
 
 ## Windows production build
 
