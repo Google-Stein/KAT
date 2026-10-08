@@ -107,6 +107,9 @@ def main() -> None:
         app = Application(backend="uia").connect(process=process.pid, timeout=30)
         window = app.window(title="KAT")
         window.wait("visible", timeout=45)
+        # Hosted desktops can be smaller than KAT's restored window size. Use
+        # the real maximize action so mouse input stays inside the work area.
+        window.maximize()
         window.set_focus()
         button("Settings")
 
@@ -527,14 +530,18 @@ def main() -> None:
 
         stage = "memory-forget-and-new-conversation"
         inspect_memory(cloud_preference)
+        stage = "memory-forget-open-confirmation"
         button("Forget memory").click_input()
+        stage = "memory-forget-notice"
         wait_for(
             lambda: visible_text(
                 "Forgetting this memory does not automatically delete the original "
                 "conversation or older database backups that may contain the original text."
             )
         )
+        stage = "memory-forget-explicit-confirmation"
         button("Confirm forget").click_input()
+        stage = "memory-forget-commit"
         wait_for(lambda: not rows("SELECT id FROM memory_items WHERE id=?", (memory_id,)))
         assert not rows("SELECT revision FROM memory_revisions WHERE memory_id=?", (memory_id,))
         assert not rows("SELECT rowid FROM memory_fts WHERE memory_fts MATCH 'prefer'")
