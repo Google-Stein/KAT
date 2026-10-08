@@ -28,6 +28,8 @@ def test_authentication_required_on_every_endpoint(client: TestClient) -> None:
         ("POST", "/approvals/missing/decision", {"approved": True}),
         ("GET", "/settings", None),
         ("PUT", "/settings", {}),
+        ("GET", "/providers", None),
+        ("POST", "/providers/probe", {}),
         ("GET", "/audit", None),
     ]:
         response = client.request(

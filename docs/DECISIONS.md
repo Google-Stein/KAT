@@ -52,3 +52,22 @@ environment overrides remain useful for CI/development and are clearly disclosed
 Credential changes restart Core through the stabilized ownership/lifecycle path.
 Cancel and vault-write failure preserve the existing process. Windows tests use
 unique synthetic entries and never mutate an owner's production credential.
+
+## ADR 013: Explicit local inference through Ollama
+
+Ollama is the first local adapter because it supports Windows/NVIDIA deployment,
+model discovery and native function calls. The backend remains independently
+installed and owned; KAT neither downloads weights nor terminates its server.
+Use loopback-only HTTP origins, literal normalization, no environment proxies,
+no redirects, bounded payloads and fixed routes. Models and capabilities are
+queried locally. Unsupported tool capabilities are disclosed; text never becomes
+a tool call. Native structured requests go through the existing validated,
+audited permission dispatcher. OpenAI remains a separate SDK adapter.
+
+Select one provider explicitly in Settings. No retry changes providers and no
+local failure sends context to OpenAI. Preserve existing users' OpenAI selection
+on upgrade rather than silently changing behavior. Local conversation requires no
+provider credential. Runtime capability metadata reports implemented chat/tools;
+streaming and structured-answer UI are not implemented. Ollama context is bounded
+to 8192 configured tokens with conservative character-bounded history; this is a
+transport budget, not a claim about every model's full context capacity.

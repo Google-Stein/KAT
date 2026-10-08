@@ -16,7 +16,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from kat_core import __version__
 from kat_core.config import CoreConfig
 from kat_core.errors import ProviderFailure
-from kat_core.provider import ModelRuntime, OpenAIAgentsRuntime
+from kat_core.provider import ModelRuntime
+from kat_core.providers import ProviderRegistry, SelectedRuntime
 from kat_core.schemas import (
     Approval,
     ApprovalDecision,
@@ -24,6 +25,8 @@ from kat_core.schemas import (
     ChatResponse,
     Message,
     MessageCreate,
+    ProviderDescriptor,
+    ProviderStatus,
     Session,
     SessionCreate,
     Settings,
@@ -47,7 +50,8 @@ def create_app(
     config: CoreConfig, *, runtime: ModelRuntime | None = None, registry: ToolRegistry | None = None
 ) -> FastAPI:
     store = Store(config.data_dir / "kat.sqlite3", config.default_model)
-    model = runtime or OpenAIAgentsRuntime(config.openai_api_key)
+    providers = ProviderRegistry(config.openai_api_key)
+    model = runtime or SelectedRuntime(providers, store.settings)
     tools = registry or build_tool_registry()
     service = ChatService(store, model, tools)
 
@@ -130,7 +134,7 @@ def create_app(
     def public_settings() -> Settings:
         return Settings(
             **store.settings().model_dump(),
-            api_key_configured=model.ready,
+            api_key_configured=runtime.ready if runtime else providers.openai.ready,
             application_allowlist=tools.public_applications(),
         )
 
@@ -195,6 +199,14 @@ def create_app(
     @app.get("/settings", response_model=Settings)
     def settings() -> Settings:
         return public_settings()
+
+    @app.get("/providers", response_model=list[ProviderDescriptor])
+    def provider_descriptors() -> list[ProviderDescriptor]:
+        return providers.descriptors()
+
+    @app.post("/providers/probe", response_model=ProviderStatus)
+    async def provider_probe(body: SettingsUpdate) -> ProviderStatus:
+        return await providers.probe(body)
 
     @app.put("/settings", response_model=Settings)
     def update_settings(body: SettingsUpdate) -> Settings:

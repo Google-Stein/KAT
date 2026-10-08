@@ -75,3 +75,13 @@ operation. The installer never installs or downloads model weights.
 changing it; Python/npm/Cargo/Tauri manifests and lockfiles carry generated copies
 for their tooling. CI runs `python scripts/version.py --check` to prevent drift.
 Only green, validated source commits may receive release tags.
+
+ProviderRegistry resolves an explicit persisted provider to a ModelRuntime.
+SelectedRuntime takes a settings snapshot per conversation request; providers
+share the same context builder and tool dispatcher. The OpenAI SDK stays inside
+its adapter. Ollama uses bounded native `/api/chat` JSON and `/api/show` capability
+metadata. Authenticated provider discovery/probe routes expose safe status,
+available model names and current tool support, never secret values. A configured
+local route can still fail connectivity; Settings probes distinguish a stopped
+backend from an uninstalled model. Schema migration 2 adds its nonsecret endpoint
+while preserving provider/model/history/permissions and backing up version 1.

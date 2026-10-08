@@ -1,5 +1,6 @@
 """Ordered atomic schema upgrades. Never silently downgrade or replay scripts."""
 
+import json
 import sqlite3
 from collections.abc import Callable
 from pathlib import Path
@@ -33,7 +34,15 @@ def foundation(db: sqlite3.Connection) -> None:
                     details TEXT NOT NULL, error TEXT)""")
 
 
-MIGRATIONS: dict[int, Migration] = {1: foundation}
+def local_provider_settings(db: sqlite3.Connection) -> None:
+    row = db.execute("SELECT value FROM settings WHERE id=1").fetchone()
+    if row:
+        settings = json.loads(row[0])
+        settings.setdefault("local_endpoint", "http://127.0.0.1:11434")
+        db.execute("UPDATE settings SET value=? WHERE id=1", (json.dumps(settings),))
+
+
+MIGRATIONS: dict[int, Migration] = {1: foundation, 2: local_provider_settings}
 
 
 def migrate(

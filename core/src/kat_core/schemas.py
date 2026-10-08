@@ -3,7 +3,9 @@
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from kat_core.endpoints import local_endpoint
 
 
 class StrictModel(BaseModel):
@@ -64,14 +66,46 @@ class ChatResponse(StrictModel):
 
 
 class SettingsUpdate(StrictModel):
-    provider: Literal["openai"] = "openai"
+    provider: Literal["openai", "ollama"] = "openai"
     model: str = Field(default="gpt-4.1-mini", pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,119}$")
     require_approval_for_low_risk: bool = False
+    local_endpoint: str = "http://127.0.0.1:11434"
+
+    @field_validator("local_endpoint")
+    @classmethod
+    def validate_local_endpoint(cls, value: str) -> str:
+        return local_endpoint(value)
 
 
 class Settings(SettingsUpdate):
     api_key_configured: bool
     application_allowlist: list[dict[str, str]]
+
+
+class ProviderCapabilities(StrictModel):
+    chat: bool = True
+    tool_calling: bool
+    structured_output: bool = False
+    streaming: bool = False
+    context_limit: int | None = None
+
+
+class ProviderDescriptor(StrictModel):
+    id: Literal["openai", "ollama"]
+    label: str
+    local: bool
+    capabilities: ProviderCapabilities
+
+
+class ProviderStatus(StrictModel):
+    provider: Literal["openai", "ollama"]
+    status: Literal[
+        "ready", "configured", "not_configured", "model_missing", "unreachable", "error"
+    ]
+    message: str
+    models: list[str] = Field(default_factory=list)
+    tool_calling: bool = False
+    error_code: str | None = None
 
 
 class AuditEntry(StrictModel):
