@@ -363,3 +363,15 @@ distinct approvals/windows, and Calculator selection/approval/native window
 creation. Real Ollama Core validation also repeats Calculator. Deterministic
 transport tests are not live local-model validation. Release/tag publication must
 wait for a successful current-source Core, desktop and Windows workflow.
+
+[First hotfix run 37806956575](https://github.com/Google-Stein/KAT/actions/runs/37806956575)
+passed Core/desktop, Python 3.12.10 packaging, and real packaged window/authenticated
+owned-Core/normal-close/forced-termination checks. Installation stopped before
+inference because restoring the Cargo output cache retained an older 0.2.0 NSIS
+installer beside the newly built 0.2.1 installer. The installer test correctly
+rejected ambiguous artifacts. The build now removes only previously generated
+`KAT_*-setup.exe` files in its repository build-output directory before bundling.
+No installation or user-data directory is cleared. During review, the extended
+UI harness also needed to wait for an approval card instead of an enabled composer
+on application requests: pending approval intentionally disables that composer.
+These corrections require another full Windows run; no timeout was increased.

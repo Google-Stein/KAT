@@ -206,7 +206,7 @@ def main() -> None:
             textarea.wait("visible enabled", timeout=20)
             return textarea
 
-        def send(text: str) -> None:
+        def send(text: str, *, needs_approval: bool = False) -> None:
             previous_answers = len(
                 rows(
                     "SELECT id FROM messages WHERE session_id=? AND role='assistant'", (session_id,)
@@ -227,7 +227,11 @@ def main() -> None:
                         )
                     )
                     > previous_answers
-                    and textarea.is_enabled()
+                    and (
+                        window.child_window(title="Allow once", control_type="Button").exists()
+                        if needs_approval
+                        else textarea.is_enabled()
+                    )
                 ),
                 180,
             )
@@ -266,7 +270,7 @@ def main() -> None:
             stage = f"{application_id}-selection-and-approval"
             previous_windows = set()
             win32gui.EnumWindows(lambda hwnd, _, seen=previous_windows: seen.add(hwnd), None)
-            send(f"Open {application_id.title()}.")
+            send(f"Open {application_id.title()}.", needs_approval=True)
             pending = rows(
                 "SELECT * FROM approvals WHERE session_id=? AND status='pending' "
                 "AND tool_name='open_application'",

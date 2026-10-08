@@ -20,6 +20,17 @@ New-Item -ItemType Directory -Force -Path $BuildRoot, $BinaryRoot | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "KAT Core packaging failed (exit $LASTEXITCODE)." }
 if (-not (Test-Path (Join-Path $BinaryRoot 'kat-core\kat-core.exe'))) { throw 'PyInstaller did not produce kat-core/kat-core.exe.' }
 
+if (-not $NoBundle) {
+    # Cargo caches/local version upgrades retain previous NSIS bundles. Only the
+    # installer built by this invocation may enter smoke tests or release assets.
+    $InstallerRoot = Join-Path $RepoRoot 'desktop\src-tauri\target\release\bundle\nsis'
+    if (Test-Path $InstallerRoot) {
+        $PreviousInstallers = @(Get-ChildItem -LiteralPath $InstallerRoot -File -Filter 'KAT_*-setup.exe')
+        foreach ($Installer in $PreviousInstallers) { Remove-Item -LiteralPath $Installer.FullName }
+        Write-Output "Removed $($PreviousInstallers.Count) previously generated KAT installer(s)."
+    }
+}
+
 Push-Location (Join-Path $RepoRoot 'desktop')
 try {
     if ($NoBundle) {
