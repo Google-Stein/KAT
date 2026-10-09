@@ -26,6 +26,11 @@ on:
         required: false
         default: false
         type: boolean
+      provider_visibility_only:
+        description: 'Only real Settings control visibility after credentials; requires executable_run'
+        required: false
+        default: false
+        type: boolean
 permissions:
   contents: read
   actions: read
@@ -46,6 +51,7 @@ jobs:
           CORE_ONLY: ${{ inputs.core_only }}
           WEATHER_ONLY: ${{ inputs.weather_only }}
           FOLDER_ONLY: ${{ inputs.folder_only }}
+          PROVIDER_VISIBILITY_ONLY: ${{ inputs.provider_visibility_only }}
           MODEL: ${{ inputs.model }}
         run: |
           python -m pip install uv
@@ -62,6 +68,9 @@ jobs:
             if ($env:FOLDER_ONLY -eq 'true') {
               & core/.venv/Scripts/python.exe scripts/smoke-installed-ui.py --executable "$((Get-Location).Path)/.local/diagnostic-app/kat-desktop.exe" --folder-only
               if ($LASTEXITCODE -ne 0) { throw 'Native folder diagnostic failed.' }
+            } elseif ($env:PROVIDER_VISIBILITY_ONLY -eq 'true') {
+              & core/.venv/Scripts/python.exe scripts/smoke-installed-ui.py --executable "$((Get-Location).Path)/.local/diagnostic-app/kat-desktop.exe" --provider-visibility-only
+              if ($LASTEXITCODE -ne 0) { throw 'Settings control visibility diagnostic failed.' }
             } else {
               ./scripts/test-local-windows.ps1 -Executable "$((Get-Location).Path)/.local/diagnostic-app/kat-desktop.exe" -Model $env:MODEL
             }

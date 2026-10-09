@@ -44,6 +44,7 @@ def main() -> None:
     parser.add_argument("--model", default="qwen2.5:7b")
     parser.add_argument("--credentials-only", action="store_true")
     parser.add_argument("--folder-only", action="store_true")
+    parser.add_argument("--provider-visibility-only", action="store_true")
     args = parser.parse_args()
     try:
         win32cred.CredRead(TARGET, win32cred.CRED_TYPE_GENERIC)
@@ -81,6 +82,15 @@ def main() -> None:
         if control.is_visible():
             return
         window.set_focus()
+        # Native credential return can leave the browser's form below the fold.
+        # Focusing the actual HTML control asks Chromium to reveal it; a wheel
+        # over a nested pane or select may otherwise scroll the wrong element.
+        element = control.wrapper_object() if hasattr(control, "wrapper_object") else control
+        for action in (lambda: element.iface_scroll_item.ScrollIntoView(), element.set_focus):
+            with suppress(Exception):
+                action()
+                if wait_for(lambda: control.is_visible(), 2):
+                    return
         rect = window.rectangle()
         coords = (rect.left + rect.width() * 3 // 4, rect.top + rect.height() // 2)
         mouse.scroll(coords=coords, wheel_dist=40)
@@ -89,6 +99,31 @@ def main() -> None:
                 return
             mouse.scroll(coords=coords, wheel_dist=-2)
             time.sleep(0.1)
+        control_rect = element.rectangle()
+        window_rect = window.rectangle()
+        print(
+            json.dumps(
+                {
+                    "test": "settings-control-visibility",
+                    "control_type": element.element_info.control_type,
+                    "control_rectangle": [
+                        control_rect.left,
+                        control_rect.top,
+                        control_rect.right,
+                        control_rect.bottom,
+                    ],
+                    "window_rectangle": [
+                        window_rect.left,
+                        window_rect.top,
+                        window_rect.right,
+                        window_rect.bottom,
+                    ],
+                    "visible": element.is_visible(),
+                    "enabled": element.is_enabled(),
+                }
+            ),
+            flush=True,
+        )
         raise RuntimeError("Settings control could not be scrolled into view")
 
     def button(name: str) -> Any:
@@ -240,6 +275,23 @@ def main() -> None:
             "restart persistence and UI removal; no renderer key exposure.",
             flush=True,
         )
+
+        if args.provider_visibility_only:
+            for title in ("Provider", "Model"):
+                stage = "settings-visible-" + title.lower()
+                control = window.child_window(
+                    title=title, control_type="ComboBox", visible_only=False
+                )
+                control.wait("exists enabled", timeout=20)
+                reveal(control)
+                assert control.is_visible()
+            print(
+                "PASS: actual Settings provider/model controls are revealed "
+                "after credential return.",
+                flush=True,
+            )
+            close()
+            return
 
         if args.credentials_only:
             close()
