@@ -9,7 +9,7 @@ lifecycle gates remain mandatory. **Full Windows installed acceptance passed** i
 [37917866058](https://github.com/Google-Stein/KAT/actions/runs/37917866058), exact
 source `4f2db51f04dca525553413bcc4f6de8bb695696e`, on October 9, 2026.
 Core, Desktop and Windows were all green. Publication additionally requires the
-final documentation commit to pass the same exact-source workflow; the release
+final release commit to pass the same exact-source workflow; the release
 notes identify that final source and gate.
 
 ### Local checks
@@ -64,6 +64,20 @@ OpenAI account certification. Owner GPU performance is not measured by CPU CI.
 All file fixtures were disposable CI data; no owner files were used.
 
 ### Investigation history (superseded by the green full run)
+
+The first final-documentation gate
+[37920167436](https://github.com/Google-Stein/KAT/actions/runs/37920167436), source
+`0d473fb099882d30a74aba04472126dad1bb5627`, passed Core/Desktop, Windows build,
+tests and lifecycle. Its direct Ollama suite then rejected a malformed listing
+proposal before installed UI acceptance. Argument count/types were available but
+not the rejected field, so this failure does not establish a path or launcher defect.
+The direct helper now includes the same privacy-safe declared-field categories
+and audit outcome used by Core; no argument values are printed. Focused
+[37921573989](https://github.com/Google-Stein/KAT/actions/runs/37921573989), helper
+source `b8ef5be61d2849cc511f73bafabee1d4a48029b9`, passed listing, exact-path
+repeated reads with distinct approvals and traversal, without reproducing the
+malformed call. No production validation was relaxed. The final-source full gate
+is still required; a focused pass alone does not authorize release.
 
 Full [37915692949](https://github.com/Google-Stein/KAT/actions/runs/37915692949),
 source `7caa3c88bb3883c4cedfb043c99f6436670d9b30`, passed Core/Desktop,
