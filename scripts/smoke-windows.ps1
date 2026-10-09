@@ -86,7 +86,10 @@ function Wait-KatReady($process) {
       # Do not probe while WebView2 initialization has yet to create its window.
       # Keep the original startup deadline and 3-second request timeout. Transient
       # probe cancellation is pending readiness, not an unclassified fatal exception.
-      if ($process.MainWindowHandle -eq 0) { continue }
+      # A Win32 handle can appear before WebviewWindowBuilder returns. Closing it
+      # then can race Tauri setup, before its normal-close handler is registered.
+      if ($process.MainWindowHandle -eq 0 -or
+          @($evidence | Where-Object { $_ -match 'stage=window_ready ' }).Count -eq 0) { continue }
       $status = Get-KatUnauthenticatedStatus
       if ($status -eq 0) {
         Write-Output 'Readiness: independent health probe pending within existing startup deadline.'
@@ -99,7 +102,11 @@ function Wait-KatReady($process) {
       }
     }
   } while ((Get-Date) -lt $deadline)
-  if ($process.MainWindowHandle -eq 0) { Fail-Kat "window-creation" "Desktop is alive but no main window appeared within $TimeoutSeconds seconds." }
+  if ($process.MainWindowHandle -eq 0 -or
+      @($evidence | Where-Object { $_ -match 'stage=window_creating ' }).Count -gt 0 -and
+      @($evidence | Where-Object { $_ -match 'stage=window_ready ' }).Count -eq 0) {
+    Fail-Kat "window-creation" "Desktop is alive but native WebView window initialization did not complete within $TimeoutSeconds seconds."
+  }
   if ($script:children.Count -eq 0) { Fail-Kat "core-child-startup" "Window exists but there is no owned Core child." }
   Fail-Kat "authenticated-readiness" "Window and owned child exist, but native authenticated readiness or independent unauthenticated rejection is incomplete within $TimeoutSeconds seconds."
 }

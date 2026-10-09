@@ -86,6 +86,23 @@ running both Core and production UI suites with no partial flags. Its built
 executable is now uploaded before runtime tests solely to allow parallel diagnosis;
 the installer remains uploadable/publishable only after all release gates pass.
 
+[37976694756](https://github.com/Google-Stein/KAT/actions/runs/37976694756)
+passed the complete real local Core suite and installed credentials, conversation,
+fresh time, repeated Notepad, Calculator, memory and RAM checks, then failed at
+native folder selection. UI-only diagnosis
+[37977322309](https://github.com/Google-Stein/KAT/actions/runs/37977322309)
+selected the folder but the model proposed an invalid root ID. Folder automation
+now sends real keyboard edit notifications and avoids racing Enter with another
+OK click; shared instructions require exact current root IDs without rewriting.
+Trusted validation still rejects invalid IDs.
+
+[37977985055](https://github.com/Google-Stein/KAT/actions/runs/37977985055)
+exposed an earlier lifecycle-test race: its Win32 handle existed while the native
+log still said `window_creating`, and normal close arrived before setup completed.
+Readiness now also requires `window_ready` within the unchanged startup deadline;
+a diagnostic regression proves an early handle alone cannot satisfy readiness.
+These failed runs remain failed evidence; full installed acceptance is pending.
+
 ## KAT 0.4 — bounded local capabilities
 
 Baseline is released v0.3.1, source

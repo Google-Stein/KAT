@@ -240,12 +240,12 @@ def main() -> None:
         edit = wait_for(
             lambda: next((c for c in picker.descendants(class_name="Edit") if c.is_visible()), None)
         )
-        edit.set_edit_text(str(fixture_root))
-        # Commit the typed shell location with normal keyboard input. WM_SETTEXT
-        # alone changes the edit value without selecting the folder in the tree.
+        # Send real edit notifications as an owner would. WM_SETTEXT does not
+        # reliably mark the shell location dirty. Do not race Enter with a second
+        # OK click while the dialog resolves the requested folder.
+        edit.type_keys("^a{BACKSPACE}")
+        edit.type_keys(str(fixture_root), with_spaces=True, pause=0.01)
         edit.type_keys("{ENTER}")
-        if picker.is_visible():
-            picker.children(class_name="Button", control_id=1)[0].click()
         wait_for(
             lambda: (
                 window.child_window(

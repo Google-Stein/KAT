@@ -62,6 +62,10 @@ $process.MainWindowHandle = 0
 function Get-KatUnauthenticatedStatus { throw 'Probe must wait for window creation.' }
 Assert-Failure 'window-creation'
 $process.MainWindowHandle = 10
+$mockEvidence += 'stage=window_creating WebView2 initialization'
+Assert-Failure 'window-creation'
+Write-Output 'PASS diagnostic: Win32 handle alone does not establish completed WebView initialization'
+$mockEvidence += 'stage=window_ready native window created'
 $probeAttempts = 0
 function Get-KatUnauthenticatedStatus { $script:probeAttempts++; if ($script:probeAttempts -eq 1) { 0 } else { 401 } }
 $TimeoutSeconds = 3
