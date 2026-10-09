@@ -2,6 +2,11 @@ name: Installed UI diagnostics
 on:
   workflow_dispatch:
     inputs:
+      model:
+        description: 'Actual local test model; does not change owner configuration'
+        required: false
+        default: 'qwen3:1.7b'
+        type: string
       executable_run:
         description: 'Optional KAT checks run artifact; empty tests released 0.1.1 credentials only'
         required: false
@@ -41,6 +46,7 @@ jobs:
           CORE_ONLY: ${{ inputs.core_only }}
           WEATHER_ONLY: ${{ inputs.weather_only }}
           FOLDER_ONLY: ${{ inputs.folder_only }}
+          MODEL: ${{ inputs.model }}
         run: |
           python -m pip install uv
           uv sync --project core --frozen --group dev
@@ -48,7 +54,7 @@ jobs:
             & core/.venv/Scripts/python.exe scripts/diagnose-weather.py
             if ($LASTEXITCODE -ne 0) { throw 'Fixed weather timing diagnostic failed.' }
           } elseif ($env:CORE_ONLY -eq 'true') {
-            ./scripts/test-local-windows.ps1
+            ./scripts/test-local-windows.ps1 -Model $env:MODEL
           } elseif ($env:EXECUTABLE_RUN) {
             if ($env:EXECUTABLE_RUN -notmatch '^\d+$') { throw 'Expected a numeric run ID.' }
             gh run download $env:EXECUTABLE_RUN --name kat-windows-executable --dir .local/diagnostic-app
@@ -57,7 +63,7 @@ jobs:
               & core/.venv/Scripts/python.exe scripts/smoke-installed-ui.py --executable "$((Get-Location).Path)/.local/diagnostic-app/kat-desktop.exe" --folder-only
               if ($LASTEXITCODE -ne 0) { throw 'Native folder diagnostic failed.' }
             } else {
-              ./scripts/test-local-windows.ps1 -Executable "$((Get-Location).Path)/.local/diagnostic-app/kat-desktop.exe"
+              ./scripts/test-local-windows.ps1 -Executable "$((Get-Location).Path)/.local/diagnostic-app/kat-desktop.exe" -Model $env:MODEL
             }
           } else {
             gh release download v0.1.1 --pattern '*-setup.exe' --dir .local/diagnostic-installer

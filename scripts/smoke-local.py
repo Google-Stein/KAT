@@ -264,6 +264,30 @@ def main() -> None:
                 for _ in range(2):
                     result = chat("Read release.txt from my test folder.")
                     pending = [a for a in result["approvals"] if a["tool_name"] == "read_text_file"]
+                    if len(pending) != 1 and os.environ.get("GITHUB_ACTIONS") == "true":
+                        print(
+                            json.dumps(
+                                {
+                                    "test": "real-local-file-selection",
+                                    "pending_count": len(pending),
+                                    "events": [
+                                        {
+                                            "event": e["event"],
+                                            "tool": e["tool_name"],
+                                            "reason": e["details"].get("reason"),
+                                            "relative_path": e["details"]
+                                            .get("arguments", {})
+                                            .get("relative_path"),
+                                        }
+                                        for e in client.get("/audit").json()
+                                        if e["session_id"] == session
+                                        and e["event"].startswith("tool_")
+                                    ],
+                                    "fixture_answer": result["assistant_message"]["content"][:1000],
+                                }
+                            ),
+                            flush=True,
+                        )
                     assert len(pending) == 1, "Model did not request a new text-file approval"
                     print(
                         json.dumps(
