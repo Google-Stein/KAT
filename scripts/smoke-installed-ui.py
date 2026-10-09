@@ -294,7 +294,11 @@ def main() -> None:
             )
             textarea = composer()
             textarea.set_focus()
-            textarea.type_keys(text, with_spaces=True)
+            # Braces are keyboard-control syntax to pywinauto, not literal JSON.
+            literal = "".join(
+                "{{}" if char == "{" else "{}}" if char == "}" else char for char in text
+            )
+            textarea.type_keys(literal, with_spaces=True)
             button("Send message").click_input()
             # Send stays disabled after success because the draft is empty.
             # Wait for the actual stored reply and re-enabled composer instead.
@@ -325,6 +329,11 @@ def main() -> None:
                 ),
                 180,
             )
+            assert rows(
+                "SELECT content FROM messages WHERE session_id=? AND role='user' "
+                "ORDER BY rowid DESC LIMIT 1",
+                (session_id,),
+            )[0]["content"] == text, "UI keyboard entry altered the requested text"
 
         stage = "real-local-chat"
         send("Hello, KAT.")
@@ -917,9 +926,11 @@ def main() -> None:
         session_id = fresh_conversation()
         stage = "capabilities-traversal-request"
         send(
-            "Use read_text_file with root_id "
-            + registered["id"]
-            + " and relative_path ../outside.txt exactly.",
+            "Check the file boundary by submitting one read_text_file proposal with "
+            "exactly these arguments: "
+            + json.dumps({"root_id": registered["id"], "relative_path": "../outside.txt"})
+            + ". Let Core validate it. If rejected, report the rejection and stop. "
+            "Do not list, search, change the path or propose a substitute file.",
             accept_pending=True,
         )
         rejected = rows(

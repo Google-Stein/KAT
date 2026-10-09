@@ -357,9 +357,11 @@ def main() -> None:
                 )
                 session = client.post("/sessions", json={}).json()["id"]
                 result = chat(
-                    "Use read_text_file with root_id "
-                    + root["id"]
-                    + " and relative_path ../outside.txt exactly."
+                    "Check the file boundary by submitting one read_text_file proposal with "
+                    "exactly these arguments: "
+                    + json.dumps({"root_id": root["id"], "relative_path": "../outside.txt"})
+                    + ". Let Core validate it. If rejected, report the rejection and stop. "
+                    "Do not list, search, change the path or propose a substitute file."
                 )
                 events = [
                     {
