@@ -1,7 +1,7 @@
 """Pin local Windows path components; never read through reparse points.
 
-Directory handles deny delete-sharing until the operation completes, preventing
-replacement/rename between checking a component and opening its child. Final
+Directory handles deny write/delete-sharing until the operation completes,
+preventing replacement, rename or in-place reparse changes during enumeration. Final
 handle paths and volume types are verified before enumeration or reading.
 """
 
@@ -58,11 +58,14 @@ def open_windows_path(path: Path, *, directory: bool) -> Iterator[Any]:
         for index in range(len(parts)):
             component = Path(*parts[: index + 1])
             is_directory = index < len(parts) - 1 or directory
-            # OPEN_REPARSE_POINT + BACKUP_SEMANTICS, no DELETE sharing.
+            # OPEN_REPARSE_POINT + BACKUP_SEMANTICS, read sharing only. Write
+            # sharing would allow an in-place reparse update before os.scandir.
             handle = api.CreateFileW(
                 str(component),
-                0x80 if is_directory else 0x80000000,
-                3 if is_directory else 1,
+                # LIST_DIRECTORY participates in Windows sharing locks;
+                # READ_ATTRIBUTES alone does not enforce write/delete exclusion.
+                0x81 if is_directory else 0x80000000,
+                1,
                 None,
                 3,
                 0x02200000,

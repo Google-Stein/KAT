@@ -441,6 +441,49 @@ def test_symlink_or_junction_escape_is_rejected(tmp_path):
             link.unlink()
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Requires actual Windows directory sharing")
+def test_windows_directory_pin_prevents_in_place_reparse_write(tmp_path):
+    import ctypes
+    from ctypes import wintypes
+
+    from kat_core.windows_files import open_windows_path
+
+    root = tmp_path / "pinned"
+    root.mkdir()
+    api = ctypes.WinDLL("kernel32", use_last_error=True)
+    api.CreateFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    api.CreateFileW.restype = wintypes.HANDLE
+    api.CloseHandle.argtypes = [wintypes.HANDLE]
+
+    def open_for_reparse_write():
+        # FSCTL_SET_REPARSE_POINT requires write access. No actual mutation is
+        # needed: the OS must deny that access while trusted enumeration is pinned.
+        return api.CreateFileW(str(root), 0x40000000, 7, None, 3, 0x02000000, None)
+
+    invalid = ctypes.c_void_p(-1).value
+    for _ in range(2):
+        handle = open_for_reparse_write()
+        assert handle != invalid, "Fixture must permit directory write when not pinned"
+        api.CloseHandle(handle)
+        with open_windows_path(root, directory=True):
+            handle = open_for_reparse_write()
+            error = ctypes.get_last_error()
+            if handle != invalid:
+                api.CloseHandle(handle)
+            assert handle == invalid
+            assert error == 32, "Pinned directory must reject writes with sharing violation"
+            with pytest.raises(PermissionError):
+                root.rename(tmp_path / "replaced")
+
+
 def test_capability_migration_preserves_schema4_and_restart(tmp_path):
     import sqlite3
     from contextlib import closing
