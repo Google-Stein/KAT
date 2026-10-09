@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kat-core"
-version = "0.3.0"
+version = "0.3.1"
 description = "Persistent local KAT assistant service"
 requires-python = ">=3.12"
 dependencies = [

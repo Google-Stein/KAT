@@ -23,6 +23,19 @@ Create minimal project scopes in Memory and select one in a conversation.
 FTS5 lexical retrieval uses up to four relevant whole records within a 4,000-character
 serialized budget; there are no embeddings and unrelated queries may return zero.
 
+**0.3.1 improves lexical recall.** Owner testing found that a saved name containing
+“named” did not match “What is my name?” in a new conversation. Search and relevance
+now share SQLite's Porter stemming: name/named/naming, prefer/preference and
+response/responses can match. Existing memory upgrades automatically without
+changing its wording. The same off-by-default, local-only and approval boundaries
+apply. This is a retrieval-quality hotfix, with no automatic extraction or vectors.
+
+Retrieval still requires shared lexical evidence. Synonyms such as car/automobile,
+some irregular forms and queries with only generic vocabulary may abstain. Porter
+can also conflate unrelated words; inspect **Memories used** and revise/forget bad
+records. See [implementation and limits](docs/MEMORY_IMPLEMENTATION.md) and
+[measured validation](docs/VALIDATION.md).
+
 Memory is local SQLite storage, **not encrypted by KAT**. Never store credentials
 or highly sensitive information. OpenAI receives no memory records; its ordinary
 selected chat history may already contain the same information. Forget removes

@@ -579,6 +579,63 @@ def main() -> None:
             "selected-message source.",
             flush=True,
         )
+        stage = "memory-name-explicit-create"
+        name_memory = "main user is named Luis"
+        button("Memory").click_input()
+        button("Add memory").click_input()
+        wording = window.child_window(title="Memory wording", control_type="Edit")
+        wording.wait("visible enabled", timeout=20)
+        wording.type_keys(name_memory, with_spaces=True)
+        button("Confirm & save memory").click_input()
+        name_id = wait_for(
+            lambda: rows("SELECT id FROM memory_items WHERE content=?", (name_memory,))
+        )[0]["id"]
+        stage = "memory-name-close-and-relaunch"
+        close()
+        launch()
+        assert (
+            json.loads(rows("SELECT value FROM settings WHERE id=1")[0]["value"])["memory_enabled"]
+            is True
+        )
+        for index, name_question in enumerate(("What is my name?", "What am I named?"), start=1):
+            stage = f"memory-name-new-conversation-{index}"
+            session_id = fresh_conversation()
+            assert not rows("SELECT id FROM messages WHERE session_id=?", (session_id,))
+            stage = f"memory-name-real-local-answer-{index}"
+            send(name_question)
+            used = rows("SELECT * FROM memory_usage WHERE session_id=?", (session_id,))
+            assert (
+                len(used) == 1 and used[0]["memory_id"] == name_id and used[0]["revision"] == 1
+            ), "Name recall did not use exactly the confirmed memory/revision"
+            answer = rows(
+                "SELECT content FROM messages WHERE id=?", (used[0]["assistant_message_id"],)
+            )[0]["content"]
+            assert "luis" in answer.lower(), "Real local model did not answer the remembered name"
+            summary = wait_for(
+                lambda: next(
+                    (c for c in window.descendants() if c.window_text() == "Memories used · 1"),
+                    None,
+                )
+            )
+            summary.click_input()
+            wait_for(lambda: visible_text(name_memory))
+            print(
+                f"PASS: installed name recall variant {index} uses the confirmed ID/revision "
+                "in a brand-new conversation after restart; real Ollama answers Luis "
+                "and Memories used shows the wording.",
+                flush=True,
+            )
+        stage = "memory-name-unrelated-new-conversation"
+        session_id = fresh_conversation()
+        stage = "memory-name-weather-abstention"
+        send("What is the weather in Oslo?")
+        assert not rows("SELECT * FROM memory_usage WHERE session_id=?", (session_id,))
+        assert not visible_text("Memories used · 1")
+        print(
+            "PASS: unrelated Oslo weather question retrieves no name memory or other record; "
+            "usage and response inspector are empty.",
+            flush=True,
+        )
         close()
         print(
             "PASS: installed Forget removes wording/revisions/FTS; a new local conversation "

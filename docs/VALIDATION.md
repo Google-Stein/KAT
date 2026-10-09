@@ -1,5 +1,69 @@
 # Validation record
 
+## KAT 0.3.1 — memory retrieval quality
+
+The baseline was published v0.3.0 source
+`71e9336d48c5375a78d606bd01c315b68365b3f7`. Before implementation, the automated
+new-conversation regression reproduced the owner's exact failure: persisted
+“main user is named Luis” returned no record for “What is my name?”. The fix
+uses SQLite Porter/unicode61 consistently in candidate search and relevance.
+Migration 4 changes only the derived index; there is no owner-name branch,
+embedding system, automatic extraction or expansion of tool permissions.
+
+### Local checks
+
+These ran in the Linux cloud workspace on CPython 3.12.14, Node 24.19.0 and
+Rust 1.99.0 with existing locked dependencies. They do not certify Windows runtime
+or the owner's RTX 4090. Historical sections below retain older release totals.
+
+| Command / gate | Actual result |
+| --- | --- |
+| `uv run --directory core pytest tests ../tests/integration -q` | **220 passed**, including 39 new quality/index-migration checks and all existing privacy/tool-history regressions |
+| Core `ruff check . ../scripts/smoke-installed-ui.py ../scripts/benchmark-memory.py`; `ruff format --check` on the same targets | Passed |
+| Core `mypy` | Passed; strict checks over 22 source modules |
+| `python scripts/version.py --check`; `git diff --check` | Passed |
+| Desktop `npm test` | **35 passed** |
+| Desktop `npm run lint`, `format:check`, `typecheck`, `build` | Passed; production assets built |
+| Native `cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --no-default-features` | **20 passed**, four fixture/explicit integration tests ignored |
+| Native `cargo fmt --check`; `cargo clippy --locked ... --all-targets --features tauri/custom-protocol -- -D warnings` | Passed |
+| Native opt-in `--ignored --skip sleeper_fixture --test-threads=1` with `KAT_NATIVE_TEST_REPO` | **Three passed** against real development/current PyInstaller Core; ownership and port cleanup passed |
+| CPython 3.12 PyInstaller `--onedir`, current Core and metadata | Passed |
+| `python scripts/smoke-core.py`, then `--executable desktop/src-tauri/binaries/kat-core/kat-core` | Both passed actual startup/authentication/keyless errors/restart persistence/shutdown |
+| PowerShell `tests/integration/test_windows_smoke_diagnostics.ps1` | **18 diagnostic checks passed**; Linux execution, separate from Windows acceptance |
+| Existing `scripts/benchmark-memory.py`, 5,000 records / 100 iterations | Same-host query-pair baseline **0.592 ms median / 0.763 ms p95**, after **1.504 / 1.981 ms** |
+
+The quality matrix passes all six requested examples: both name inflections,
+model setup preference, local inference preference, active-project focus and
+concise response style. It also covers alternate owner names, other domains,
+accents and literal Unicode. Weather/name, cooking/model, generic-only words,
+unrelated pins, hostile FTS text and wrong-project cases abstain. Candidate reads
+remain at most 50; output remains at most four records / 4,000 serialized characters.
+
+Representative schema-3 data, revisions, usage, projects, settings, pending approvals,
+audit and transcripts remain identical after upgrade; WAL-inclusive backup retains
+the original index/data. Failed migration restores actual old postings and version.
+Forget removes stemmed search artifacts. Safe diagnostics expose counts, selected
+ID/revision pairs and duration without query/private candidate wording. Synthetic
+HTTP tests exercise the actual Ollama adapter across restart/new sessions; they
+are protocol regressions, not real-model validation. Existing OpenAI SDK exclusion,
+prompt-injection/approval, scope and fresh time/Notepad/Calculator tests all pass.
+
+Lexical limits remain: car/automobile, some irregular forms such as focus/focused,
+and extra unmatched query words can miss; sparse universe/university stems can
+collide. Conservative multiword gating rejects the tested campus/universe query,
+but does not claim semantic disambiguation. Continue owner relevance testing before
+considering embeddings. Benchmark numbers measure the matching + unrelated query
+pair, not inference/GPU latency; the roughly 0.9 ms median increase is documented.
+
+### Windows installed acceptance — pending
+
+The acceptance helper now adds the exact confirmed name through the installed UI,
+restarts KAT, asks both name questions in separate empty conversations, asserts
+the real local answer and exact ID/revision-1 inspector, then verifies unrelated
+Oslo weather records zero usage. All prior lifecycle, credential, tool and memory
+create/edit/Forget/Remember acceptance remains required. No v0.3.1 Windows or
+release validation is claimed until exact-source full CI passes.
+
 ## KAT 0.3 — bounded explicit memory
 
 The implementation was reconciled with published v0.2.1 commit

@@ -63,7 +63,7 @@ inspection and forgetting. Cloud transcript handling and backup erasure remain
 separate. [MEMORY_DESIGN_PROPOSAL.md](MEMORY_DESIGN_PROPOSAL.md) distinguishes this
 approved implementation from future ideas.
 
-## 0.3: Persistent explicit memory
+## 0.3: Persistent explicit memory — complete
 
 The bounded implementation adds reviewed Add/Remember, editable records and
 revisions, stable project scopes, lexical retrieval, response usage inspectors,
@@ -72,6 +72,16 @@ SQLite is not encrypted by KAT. Identifiable credentials and non-normal sensitiv
 categories are refused; highly sensitive storage is unsupported.
 Release requires green exact-source Core/Desktop/Windows and actual installed
 Ollama create/restart/use/edit/forget validation; evidence is in VALIDATION.md.
+
+## 0.3.1: Memory retrieval quality hotfix
+
+Owner testing exposed a name/named mismatch across conversations. Shared SQLite
+Porter normalization improves ordinary morphological matching in both indexed
+search and relevance scoring. Existing data upgrades without wording changes;
+scope, abstention, local-only context, Forget and tool authorization stay bounded.
+Release requires the original gates plus installed real-Ollama name recall after
+restart, a second new-conversation wording and unrelated-weather abstention.
+No embeddings, automatic extraction or planning are part of this hotfix.
 
 ## Next bounded milestone — owner review
 
