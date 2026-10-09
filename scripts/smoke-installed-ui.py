@@ -355,7 +355,7 @@ def main() -> None:
                 provider.type_keys(keys)
                 button("Save settings").invoke()
                 wait_for(
-                    lambda: (
+                    lambda expected=expected: (
                         json.loads(rows("SELECT value FROM settings WHERE id=1")[0]["value"])[
                             "provider"
                         ]
