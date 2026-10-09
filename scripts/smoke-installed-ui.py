@@ -667,7 +667,10 @@ def main() -> None:
         )
         checkbox.wait("exists enabled", timeout=20)
         reveal(checkbox)
-        checkbox.click_input()
+        # Use the production checkbox's accessibility action. Coordinate input
+        # can miss after scroll/relaunch; TogglePattern still dispatches the real
+        # owner control and the persisted setting below proves it took effect.
+        checkbox.toggle()
         wait_for(
             lambda: json.loads(rows("SELECT value FROM settings WHERE id=1")[0]["value"])[
                 "memory_enabled"
@@ -1270,7 +1273,7 @@ def main() -> None:
         conversations.wait("exists", timeout=20)
         current_session = conversations.descendants(control_type="Button")[0]
         reveal(current_session)
-        current_session.click_input()
+        current_session.invoke()
         button("Allow once").click_input()
         suppressed = wait_for(
             lambda: (
