@@ -101,3 +101,13 @@ forgotten wording. This is logical removal from the memory system, not forensic
 erasure of WAL/filesystem snapshots, older backups or original transcripts.
 Forgetting cannot revoke context already supplied to an in-progress model run;
 its later usage contains IDs only if the record was forgotten in the meantime.
+
+In 0.3.1 migration 4 rebuilds the existing derived FTS index with Porter/unicode61;
+authoritative wording and revisions are unchanged. Relevance normalization uses a
+separate RAM-only SQLite probe, closes after retrieval and caches no private terms.
+Forget deletes/rebuilds the same persistent FTS artifacts; it creates no additional
+durable normalized store. Pre-upgrade backups still contain the original private
+data and require the same protection. Diagnostics contain counts, selected memory
+IDs/revisions and duration, never query words, candidate text or rejected IDs.
+Stemming can increase lexical ambiguity; conservative relevance and project/date/
+status filters remain. Retrieved text still cannot authorize an action.

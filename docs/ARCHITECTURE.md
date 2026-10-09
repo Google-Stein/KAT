@@ -105,11 +105,27 @@ chooses memory eligibility before transport. Memory is not Ollama-owned storage.
 For each enabled local user turn, retrieve once from confirmed/current/unexpired
 records, personal plus the active project. Future-effective, superseded, disputed
 and wrong-project records are excluded. Tokenize at most 12 meaningful query words,
-quote them as literal FTS terms, read at most 50 ranked candidates and require two
-matching words (one for a single-keyword query), with at least 25% query coverage.
+quote them as literal FTS terms and read at most 50 ranked candidates. Migration 4
+replaces the derived index with `porter unicode61` and rebuilds it from unchanged
+items. `memory_lexical` uses SQLite FTS5/fts5vocab in a separate RAM-only database
+to apply that exact tokenizer to query and bounded candidate wording. The scorer
+requires two distinct matching stems (one for a single-stem query), with at least
+25% query coverage. A small general low-information vocabulary makes generic-only
+queries abstain; those words can still contribute alongside meaningful evidence.
+Raw sanitized terms go into FTS, avoiding a second application of Porter stemming.
 Pins and importance rank eligible results; they never force relevance. Insert
 at most four complete records within a 4,000-character serialized JSON budget.
 There are no embeddings, quotas filled with weak results or full-table Python reads.
+
+The normalization probe holds one input at a time and closes after retrieval;
+no private normalized terms are cached or added to persistent storage. Safe
+diagnostics expose counts, relevance/budget rejection counts, selected ID/revision
+pairs and duration, never query terms, private wording or rejected record IDs.
+Porter is English lexical normalization, not semantic understanding. Literal
+Unicode, SQLite case/diacritic normalization and conservative overlap remain;
+synonyms, irregular forms and stem collisions have explicit regression coverage
+and limits in MEMORY_IMPLEMENTATION.md. Neither the provider/tool loop nor the
+historical transient-tool context policy changes.
 
 `working_context` marks the bounded JSON as UNTRUSTED DATA in a separate user-role
 data envelope immediately before the latest owner request, outside system

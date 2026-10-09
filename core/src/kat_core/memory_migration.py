@@ -3,6 +3,36 @@
 import json
 import sqlite3
 
+from kat_core.memory_lexical import MEMORY_TOKENIZER
+
+
+def create_memory_index(db: sqlite3.Connection, tokenizer: str) -> None:
+    # Tokenizer is a code-owned migration constant, never owner/model SQL input.
+    db.execute(
+        "CREATE VIRTUAL TABLE memory_fts USING fts5(content, content=memory_items, "
+        f"content_rowid=rowid, tokenize='{tokenizer}')"
+    )
+    for statement in (
+        """CREATE TRIGGER memory_insert AFTER INSERT ON memory_items BEGIN
+            INSERT INTO memory_fts(rowid,content) VALUES(new.rowid,new.content); END""",
+        """CREATE TRIGGER memory_delete AFTER DELETE ON memory_items BEGIN
+            INSERT INTO memory_fts(memory_fts,rowid,content)
+            VALUES('delete',old.rowid,old.content); END""",
+        """CREATE TRIGGER memory_update AFTER UPDATE OF content ON memory_items BEGIN
+            INSERT INTO memory_fts(memory_fts,rowid,content)
+            VALUES('delete',old.rowid,old.content);
+            INSERT INTO memory_fts(rowid,content) VALUES(new.rowid,new.content); END""",
+    ):
+        db.execute(statement)
+
+
+def stemmed_memory_index(db: sqlite3.Connection) -> None:
+    for trigger in ("memory_insert", "memory_delete", "memory_update"):
+        db.execute(f"DROP TRIGGER {trigger}")
+    db.execute("DROP TABLE memory_fts")
+    create_memory_index(db, MEMORY_TOKENIZER)
+    db.execute("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')")
+
 
 def memory_schema(db: sqlite3.Connection) -> None:
     statements = (
@@ -28,20 +58,11 @@ def memory_schema(db: sqlite3.Connection) -> None:
             provider TEXT NOT NULL, used_at TEXT NOT NULL,
             PRIMARY KEY(memory_id,assistant_message_id))""",
         "CREATE INDEX memory_usage_session ON memory_usage(session_id,assistant_message_id)",
-        "CREATE VIRTUAL TABLE memory_fts USING fts5(content, content=memory_items, "
-        "content_rowid=rowid, tokenize='unicode61')",
-        """CREATE TRIGGER memory_insert AFTER INSERT ON memory_items BEGIN
-            INSERT INTO memory_fts(rowid,content) VALUES(new.rowid,new.content); END""",
-        """CREATE TRIGGER memory_delete AFTER DELETE ON memory_items BEGIN
-            INSERT INTO memory_fts(memory_fts,rowid,content)
-            VALUES('delete',old.rowid,old.content); END""",
-        """CREATE TRIGGER memory_update AFTER UPDATE OF content ON memory_items BEGIN
-            INSERT INTO memory_fts(memory_fts,rowid,content)
-            VALUES('delete',old.rowid,old.content);
-            INSERT INTO memory_fts(rowid,content) VALUES(new.rowid,new.content); END""",
     )
     for statement in statements:
         db.execute(statement)
+    # Preserve the historical schema-3 definition; migration 4 rebuilds it.
+    create_memory_index(db, "unicode61")
     row = db.execute("SELECT value FROM settings WHERE id=1").fetchone()
     if row:
         settings = json.loads(row[0])

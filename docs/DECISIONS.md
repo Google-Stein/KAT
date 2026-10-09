@@ -164,3 +164,29 @@ one project. Relevant personal plus that project are eligible. Wrong-project
 records are excluded. Scope is immutable on an item; changing it means a new
 explicit entry, preventing an ordinary edit from broadening project privacy.
 No tasks, planner or project management engine is introduced.
+
+## ADR 023: Identical SQLite stemming for search and relevance
+
+**Accepted for 0.3.1.** Owner testing reproduced a stored “named” record failing
+the new-conversation “name” query. The unicode61 index and raw overlap gate both
+lacked morphological normalization; changing the index alone would leave a
+second rejection path. Use SQLite's actual `porter unicode61` for both. A bounded
+RAM-only FTS5/fts5vocab probe scores distinct stems without a duplicate Python
+stemmer, persistent normalized copies, raw operator interpolation or private caches.
+
+Measured SQLite behavior covers name/named/naming, prefer/preference, remembered,
+working and plurals, accented Latin and literal Unicode. It does not equate every
+form (focus/focused), synonyms (car/automobile) or Straße/STRASSE, and can collide
+(universe/university). Keep multiword overlap/coverage and generic-only abstention;
+pins cannot override them. Sparse collision ambiguity remains a documented limit.
+No identity-intent or owner-name branches exist in production. Existing indexed
+12-term/50-candidate/4-record/4,000-character bounds stay in place.
+
+Ordered migration 4 atomically replaces/rebuilds only FTS and its triggers, preserving
+schema-3 authoritative data and WAL-inclusive backup/rollback. Forget removes the
+same derived index artifacts; there is no new durable search store. Operational
+diagnostics log counts, selected IDs/revisions and duration without private words.
+Synthetic 5,000-record benchmark query-pair median/p95 changed from 0.592/0.763 ms
+to 1.504/1.981 ms on the same cloud host. The bounded cost is acceptable for this
+quality correction. Keep gathering owner relevance/abstention feedback before
+considering embeddings or model-generated rewriting as a separate design decision.
