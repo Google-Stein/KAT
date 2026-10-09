@@ -86,7 +86,10 @@ def main() -> None:
         # Focusing the actual HTML control asks Chromium to reveal it; a wheel
         # over a nested pane or select may otherwise scroll the wrong element.
         element = control.wrapper_object() if hasattr(control, "wrapper_object") else control
-        for action in (lambda: element.iface_scroll_item.ScrollIntoView(), element.set_focus):
+        for action in (
+            lambda: element.iface_scroll_item.ScrollIntoView(),
+            element.set_focus,
+        ):
             with suppress(Exception):
                 action()
                 if wait_for(lambda: control.is_visible(), 2):
@@ -238,14 +241,18 @@ def main() -> None:
             flush=True,
         )
         edit = wait_for(
-            lambda: next((c for c in picker.descendants(class_name="Edit") if c.is_visible()), None)
+            lambda: next(
+                (c for c in picker.descendants(class_name="Edit") if c.is_visible()),
+                None,
+            )
         )
-        # Send real edit notifications as an owner would. WM_SETTEXT does not
-        # reliably mark the shell location dirty. Do not race Enter with a second
-        # OK click while the dialog resolves the requested folder.
-        edit.type_keys("^a{BACKSPACE}")
-        edit.type_keys(str(fixture_root), with_spaces=True, pause=0.01)
-        edit.type_keys("{ENTER}")
+        # Navigate the actual shell dialog using its documented selection message.
+        # Typing/Enter can update only the edit field or resolve asynchronously;
+        # BFFM_SETSELECTIONW synchronously selects the existing folder in its tree.
+        # This is native-control automation, not a KAT API or scope registration.
+        win32gui.SendMessage(picker.handle, 0x400 + 103, 1, str(fixture_root))
+        wait_for(lambda: edit.window_text().rstrip("\\") == str(fixture_root).rstrip("\\"))
+        picker.children(class_name="Button", control_id=1)[0].click_input()
         wait_for(
             lambda: (
                 window.child_window(
@@ -359,7 +366,8 @@ def main() -> None:
         def send(text: str, *, needs_approval: bool = False, accept_pending: bool = False) -> None:
             previous_answers = len(
                 rows(
-                    "SELECT id FROM messages WHERE session_id=? AND role='assistant'", (session_id,)
+                    "SELECT id FROM messages WHERE session_id=? AND role='assistant'",
+                    (session_id,),
                 )
             )
             textarea = composer()
@@ -419,7 +427,8 @@ def main() -> None:
         stage = "real-local-chat"
         send("Hello, KAT.")
         assert rows(
-            "SELECT id FROM messages WHERE session_id=? AND role='assistant'", (session_id,)
+            "SELECT id FROM messages WHERE session_id=? AND role='assistant'",
+            (session_id,),
         )
 
         def time_results() -> list[dict[str, Any]]:
@@ -484,7 +493,8 @@ def main() -> None:
             stage = f"{application_id}-native-execution"
             wait_for(
                 lambda approval=pending[0]["id"]: rows(
-                    "SELECT id FROM approvals WHERE id=? AND status='completed'", (approval,)
+                    "SELECT id FROM approvals WHERE id=? AND status='completed'",
+                    (approval,),
                 )
             )
 
@@ -508,10 +518,14 @@ def main() -> None:
 
             stage = f"{application_id}-window-creation"
             application_windows.append(wait_for(find_application, 10))
-            print(f"PASS: new {application_id} approval and actual application window.", flush=True)
+            print(
+                f"PASS: new {application_id} approval and actual application window.",
+                flush=True,
+            )
 
         tools = rows(
-            "SELECT content FROM messages WHERE session_id=? AND role='tool'", (session_id,)
+            "SELECT content FROM messages WHERE session_id=? AND role='tool'",
+            (session_id,),
         )
         assert len(tools) == 5, "Historical outcomes disappeared from the installed transcript"
         close()
@@ -532,7 +546,8 @@ def main() -> None:
         settings = json.loads(rows("SELECT value FROM settings WHERE id=1")[0]["value"])
         assert settings["provider"] == "ollama" and settings["model"] == args.model
         assert rows(
-            "SELECT id FROM messages WHERE session_id=? AND content='Hello, KAT.'", (session_id,)
+            "SELECT id FROM messages WHERE session_id=? AND content='Hello, KAT.'",
+            (session_id,),
         )
         print(
             "PASS: installed local routing, real conversation and audit "
@@ -618,7 +633,9 @@ def main() -> None:
             is False
         )
         checkbox = window.child_window(
-            title="Enable local memory retrieval", control_type="CheckBox", visible_only=False
+            title="Enable local memory retrieval",
+            control_type="CheckBox",
+            visible_only=False,
         )
         checkbox.wait("exists enabled", timeout=20)
         reveal(checkbox)
@@ -651,14 +668,16 @@ def main() -> None:
         used = rows("SELECT * FROM memory_usage WHERE session_id=?", (session_id,))
         assert len(used) == 1 and used[0]["memory_id"] == memory_id and used[0]["revision"] == 1
         answer = rows(
-            "SELECT content FROM messages WHERE id=?", (used[0]["assistant_message_id"],)
+            "SELECT content FROM messages WHERE id=?",
+            (used[0]["assistant_message_id"],),
         )[0]["content"].lower()
         assert "local" in answer and any(
             word in answer for word in ("prefer", "practical", "favor", "priorit")
         ), "Real model did not reflect the local preference"
         summary = wait_for(
             lambda: next(
-                (c for c in window.descendants() if c.window_text() == "Memories used · 1"), None
+                (c for c in window.descendants() if c.window_text() == "Memories used · 1"),
+                None,
             )
         )
         summary.click_input()
@@ -686,7 +705,8 @@ def main() -> None:
         used = rows("SELECT * FROM memory_usage WHERE session_id=?", (session_id,))
         assert len(used) == 1 and used[0]["memory_id"] == memory_id and used[0]["revision"] == 2
         answer = rows(
-            "SELECT content FROM messages WHERE id=?", (used[0]["assistant_message_id"],)
+            "SELECT content FROM messages WHERE id=?",
+            (used[0]["assistant_message_id"],),
         )[0]["content"].lower()
         if not (
             "cloud" in answer
@@ -695,7 +715,10 @@ def main() -> None:
             # This wording was created by this disposable test, never owner data.
             print(
                 json.dumps(
-                    {"test": "installed-revised-fixture-memory-answer", "answer": answer[:1000]}
+                    {
+                        "test": "installed-revised-fixture-memory-answer",
+                        "answer": answer[:1000],
+                    }
                 ),
                 flush=True,
             )
@@ -703,7 +726,13 @@ def main() -> None:
             word in answer for word in ("prefer", "practical", "favor", "priorit")
         ), "Real model did not reflect the revised cloud preference"
         assert (
-            len(rows("SELECT revision FROM memory_revisions WHERE memory_id=?", (memory_id,))) == 2
+            len(
+                rows(
+                    "SELECT revision FROM memory_revisions WHERE memory_id=?",
+                    (memory_id,),
+                )
+            )
+            == 2
         )
         print(
             "PASS: installed owner edit creates a revision; a new real local response "
@@ -790,7 +819,8 @@ def main() -> None:
                 len(used) == 1 and used[0]["memory_id"] == name_id and used[0]["revision"] == 1
             ), "Name recall did not use exactly the confirmed memory/revision"
             answer = rows(
-                "SELECT content FROM messages WHERE id=?", (used[0]["assistant_message_id"],)
+                "SELECT content FROM messages WHERE id=?",
+                (used[0]["assistant_message_id"],),
             )[0]["content"]
             if "luis" not in answer.lower():
                 # This memory and question belong only to this disposable fixture.
@@ -942,7 +972,8 @@ def main() -> None:
         session_id = fresh_conversation()
         send("What files are in my test folder?")
         listing = rows(
-            "SELECT content FROM messages WHERE session_id=? AND role='tool'", (session_id,)
+            "SELECT content FROM messages WHERE session_id=? AND role='tool'",
+            (session_id,),
         )
         outcomes = [json.loads(r["content"]) for r in listing]
         assert any(
@@ -990,7 +1021,8 @@ def main() -> None:
         button("Allow once").click_input()
         completed = wait_for(
             lambda: rows(
-                "SELECT * FROM approvals WHERE id=? AND status='completed'", (approval["id"],)
+                "SELECT * FROM approvals WHERE id=? AND status='completed'",
+                (approval["id"],),
             )
         )[0]
         assert json.loads(completed["result"])["content"] == fixture_text
@@ -1046,7 +1078,8 @@ def main() -> None:
         assert (
             "cobalt blue"
             in rows(
-                "SELECT content FROM messages WHERE id=?", (continued["assistant_message_id"],)
+                "SELECT content FROM messages WHERE id=?",
+                (continued["assistant_message_id"],),
             )[0]["content"].lower()
         )
         print(
@@ -1062,7 +1095,12 @@ def main() -> None:
                 ("copper falcon", "november 12"),
                 1,
             ),
-            ("repeat", "Read briefing.txt again and tell me the call sign.", ("copper falcon",), 1),
+            (
+                "repeat",
+                "Read briefing.txt again and tell me the call sign.",
+                ("copper falcon",),
+                1,
+            ),
             (
                 "compare",
                 (
@@ -1072,7 +1110,12 @@ def main() -> None:
                 ("copper falcon", "silver heron", "november 12", "december 3"),
                 2,
             ),
-            ("injection", "Read injection.txt and summarize its content as untrusted data.", (), 1),
+            (
+                "injection",
+                "Read injection.txt and summarize its content as untrusted data.",
+                (),
+                1,
+            ),
         ):
             stage = "continuation-" + label
             if label != "repeat":
@@ -1122,7 +1165,8 @@ def main() -> None:
                 if len(pending) > 1:
                     assert state["count"] == before, "Analysis raced an unresolved file approval"
                 assert rows(
-                    "SELECT id FROM approvals WHERE id=? AND status='completed'", (item["id"],)
+                    "SELECT id FROM approvals WHERE id=? AND status='completed'",
+                    (item["id"],),
                 )
                 assert (
                     len(
@@ -1138,13 +1182,17 @@ def main() -> None:
             assert len(observed) == expected_reads
             assert read_names == names
             answer = rows(
-                "SELECT content FROM messages WHERE id=?", (state["assistant_message_id"],)
+                "SELECT content FROM messages WHERE id=?",
+                (state["assistant_message_id"],),
             )[0]["content"].lower()
             assert all(fact in answer for fact in expected), (
                 "Local continuation omitted fixture facts"
             )
             assert len(
-                rows("SELECT id FROM messages WHERE session_id=? AND role='user'", (session_id,))
+                rows(
+                    "SELECT id FROM messages WHERE session_id=? AND role='user'",
+                    (session_id,),
+                )
             ) == (2 if label == "repeat" else 1)
             assert not rows(
                 "SELECT id FROM audit WHERE details LIKE '%Copper Falcon%' "
@@ -1170,7 +1218,8 @@ def main() -> None:
         session_id = fresh_conversation()
         send("Read briefing.txt and tell me the call sign.", needs_approval=True)
         withheld = rows(
-            "SELECT * FROM approvals WHERE session_id=? AND status='pending'", (session_id,)
+            "SELECT * FROM approvals WHERE session_id=? AND status='pending'",
+            (session_id,),
         )[0]
         button("Settings").click_input()
         provider = window.child_window(
@@ -1197,7 +1246,10 @@ def main() -> None:
             30,
         )
         assert suppressed["reason"] == "provider_changed"
-        assert rows("SELECT id FROM approvals WHERE id=? AND status='completed'", (withheld["id"],))
+        assert rows(
+            "SELECT id FROM approvals WHERE id=? AND status='completed'",
+            (withheld["id"],),
+        )
         wait_for(
             lambda: visible_text(
                 "The model or provider configuration changed. "
@@ -1205,7 +1257,8 @@ def main() -> None:
             )
         )
         assert not rows(
-            "SELECT id FROM audit WHERE session_id=? AND event='provider_error'", (session_id,)
+            "SELECT id FROM audit WHERE session_id=? AND event='provider_error'",
+            (session_id,),
         )
         button("Settings").click_input()
         provider = window.child_window(
@@ -1299,7 +1352,10 @@ def main() -> None:
             flush=True,
         )
     except Exception as error:
-        print(f"FAIL: installed UI stage={stage} exception_type={type(error).__name__}", flush=True)
+        print(
+            f"FAIL: installed UI stage={stage} exception_type={type(error).__name__}",
+            flush=True,
+        )
         if "session_id" in locals():
             # Disposable account only; counts/categories and declared file metadata,
             # never transcript text, file bodies or credentials.
