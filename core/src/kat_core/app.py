@@ -29,6 +29,7 @@ from kat_core.providers import ProviderRegistry, SelectedRuntime
 from kat_core.schemas import (
     Approval,
     ApprovalDecision,
+    ApprovalDecisionResponse,
     AuditEntry,
     ChatResponse,
     Message,
@@ -223,8 +224,8 @@ def create_app(
             require_session(session_id)
         return store.approvals(session_id)
 
-    @app.post("/approvals/{approval_id}/decision", response_model=Approval)
-    async def decide(approval_id: str, body: ApprovalDecision) -> Approval:
+    @app.post("/approvals/{approval_id}/decision", response_model=ApprovalDecisionResponse)
+    async def decide(approval_id: str, body: ApprovalDecision) -> ApprovalDecisionResponse:
         approval = store.approval(approval_id)
         if not approval:
             raise HTTPException(status_code=404, detail="Approval not found")

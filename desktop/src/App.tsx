@@ -265,11 +265,44 @@ export default function App() {
     actionRef.current = true;
     setBusy(true);
     setError(null);
+    const sessionId = selectedId;
+    const controller = new AbortController();
+    let polling = false;
+    const progress = setInterval(() => {
+      if (!sessionId || polling) return;
+      polling = true;
+      void api
+        .approvals(sessionId, controller.signal)
+        .then((saved) => {
+          if (!controller.signal.aborted) setApprovals(saved);
+        })
+        .catch(() => {
+          /* Decision response remains authoritative. */
+        })
+        .finally(() => {
+          polling = false;
+        });
+    }, 500);
     try {
-      await api.decide(id, approved);
+      const response = await api.decide(id, approved);
+      clearInterval(progress);
+      controller.abort();
+      if (response.assistant_message)
+        setMessages((saved) =>
+          saved.some((m) => m.id === response.assistant_message!.id)
+            ? saved
+            : [...saved, response.assistant_message!],
+        );
+      setApprovals((saved) => [
+        ...saved.filter((a) => a.id !== id && !response.new_approvals.some((next) => next.id === a.id)),
+        response,
+        ...response.new_approvals,
+      ]);
     } catch (failure) {
       setError(errorMessage(failure));
     } finally {
+      clearInterval(progress);
+      controller.abort();
       actionRef.current = false;
       setBusy(false);
     }

@@ -28,7 +28,7 @@ export function ApprovalCard({ approval, busy, onDecision }: Props) {
       </div>
       <p className="muted approval-caption">
         {approval.tool_name === 'read_text_file'
-          ? 'Read only this file once. Its contents will appear in the local transcript; every later read needs a new approval.'
+          ? `Read only this file once. Its contents will appear in the local transcript; every later read needs a new approval. ${approval.continuation?.provider === 'ollama' ? 'The original local task can continue using this result.' : 'Automatic file analysis is local Ollama only; approved contents are not automatically sent to cloud models.'}`
           : 'Allow this one request. Future requests follow your permission settings.'}
       </p>
       <div className="approval-actions">

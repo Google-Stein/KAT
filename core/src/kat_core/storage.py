@@ -53,6 +53,9 @@ class Store:
                 approval_id=approval.id,
                 error=error,
             )
+        from kat_core.turn_store import TurnStore
+
+        TurnStore(self).recover()
 
     @contextmanager
     def transaction(self) -> Iterator[sqlite3.Connection]:
@@ -90,9 +93,13 @@ class Store:
     def messages(self, session_id: str) -> list[Message]:
         with self._lock:
             return [
-                Message(**dict(row))
+                Message(
+                    **{**dict(row), "transient_tool_context": bool(row["transient_tool_context"])}
+                )
                 for row in self._db.execute(
-                    "SELECT id,session_id,role,content,created_at FROM messages "
+                    "SELECT id,session_id,role,content,created_at,origin_user_message_id,"
+                    "transient_tool_context "
+                    "FROM messages "
                     "WHERE session_id=? ORDER BY sequence",
                     (session_id,),
                 )
@@ -104,6 +111,8 @@ class Store:
         role: Literal["user", "assistant", "tool"],
         content: str,
         *,
+        origin_user_message_id: str | None = None,
+        transient_tool_context: bool = False,
         after_insert: Callable[[sqlite3.Connection, Message], None] | None = None,
     ) -> Message:
         message = Message(
@@ -112,10 +121,13 @@ class Store:
             role=role,
             content=content,
             created_at=timestamp(),
+            origin_user_message_id=origin_user_message_id,
+            transient_tool_context=transient_tool_context,
         )
         with self.transaction() as db:
             db.execute(
-                "INSERT INTO messages(id,session_id,role,content,created_at) VALUES (?,?,?,?,?)",
+                "INSERT INTO messages(id,session_id,role,content,created_at,origin_user_message_id,"
+                "transient_tool_context) VALUES (?,?,?,?,?,?,?)",
                 tuple(message.model_dump().values()),
             )
             db.execute("UPDATE sessions SET updated_at=? WHERE id=?", (timestamp(), session_id))
@@ -131,13 +143,24 @@ class Store:
 
     def save_settings(self, settings: SettingsUpdate) -> None:
         with self.transaction() as db:
-            db.execute("UPDATE settings SET value=? WHERE id=1", (settings.model_dump_json(),))
+            old = self.settings()
+            changed = (old.provider, old.model, old.local_endpoint) != (
+                settings.provider,
+                settings.model,
+                settings.local_endpoint,
+            )
+            db.execute(
+                "UPDATE settings SET value=?,route_revision=route_revision+? WHERE id=1",
+                (settings.model_dump_json(), int(changed)),
+            )
 
-    @staticmethod
-    def _approval(row: sqlite3.Row) -> Approval:
+    def _approval(self, row: sqlite3.Row) -> Approval:
+        from kat_core.turn_store import TurnStore
+
         data = dict(row)
         data["arguments"] = json.loads(data["arguments"])
         data["result"] = json.loads(data["result"]) if data["result"] else None
+        data["continuation"] = TurnStore(self).info(data["origin_user_message_id"])
         return Approval(**data)
 
     def approval(self, approval_id: str) -> Approval | None:
@@ -169,6 +192,9 @@ class Store:
         arguments: dict[str, Any],
         risk: Literal["low", "medium", "high"],
         display_context: str | None = None,
+        *,
+        origin_user_message_id: str | None = None,
+        continuation_policy: Literal["none", "local_result"] = "none",
     ) -> Approval:
         approval = Approval(
             id=str(uuid4()),
@@ -179,11 +205,14 @@ class Store:
             status="pending",
             created_at=timestamp(),
             display_context=display_context,
+            origin_user_message_id=origin_user_message_id,
+            continuation_policy=continuation_policy,
         )
         with self.transaction() as db:
             db.execute(
                 "INSERT INTO approvals(id,session_id,tool_name,arguments,risk,status,"
-                "created_at,display_context) VALUES (?,?,?,?,?,?,?,?)",
+                "created_at,display_context,origin_user_message_id,continuation_policy) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (
                     approval.id,
                     session_id,
@@ -193,8 +222,16 @@ class Store:
                     approval.status,
                     approval.created_at,
                     display_context,
+                    origin_user_message_id,
+                    continuation_policy,
                 ),
             )
+            if origin_user_message_id:
+                db.execute(
+                    "UPDATE continuations SET approvals_created=approvals_created+1 "
+                    "WHERE origin_user_message_id=?",
+                    (origin_user_message_id,),
+                )
         return approval
 
     def claim_approval(self, approval_id: str, approved: bool) -> bool:
@@ -207,6 +244,12 @@ class Store:
                 return False
             row = db.execute("SELECT * FROM approvals WHERE id=?", (approval_id,)).fetchone()
             assert row is not None
+            if row["origin_user_message_id"]:
+                db.execute(
+                    "UPDATE continuations SET state='result_available' "
+                    "WHERE origin_user_message_id=? AND state IN ('waiting','result_available')",
+                    (row["origin_user_message_id"],),
+                )
             self._insert_audit(
                 db,
                 AuditEntry(
@@ -228,17 +271,22 @@ class Store:
                         "approval_id": approval_id,
                         "status": "denied",
                     },
+                    origin_user_message_id=row["origin_user_message_id"],
                 )
             return True
 
     @staticmethod
     def _insert_tool_message(
-        db: sqlite3.Connection, session_id: str, result: dict[str, Any]
+        db: sqlite3.Connection,
+        session_id: str,
+        result: dict[str, Any],
+        origin_user_message_id: str | None = None,
     ) -> None:
         now = timestamp()
         db.execute(
-            "INSERT INTO messages(id,session_id,role,content,created_at) VALUES (?,?,?,?,?)",
-            (str(uuid4()), session_id, "tool", json.dumps(result), now),
+            "INSERT INTO messages(id,session_id,role,content,created_at,origin_user_message_id) "
+            "VALUES (?,?,?,?,?,?)",
+            (str(uuid4()), session_id, "tool", json.dumps(result), now, origin_user_message_id),
         )
         db.execute("UPDATE sessions SET updated_at=? WHERE id=?", (now, session_id))
 
@@ -289,6 +337,7 @@ class Store:
                         "result": result,
                         "error": error,
                     },
+                    origin_user_message_id=row["origin_user_message_id"],
                 )
 
     @staticmethod

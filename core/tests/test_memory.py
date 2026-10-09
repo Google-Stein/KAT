@@ -232,7 +232,7 @@ def test_representative_021_database_upgrade_and_backup(tmp_path: Path) -> None:
     )
     db.commit()
     migrate(db, path)
-    assert db.execute("PRAGMA user_version").fetchone()[0] == 5
+    assert db.execute("PRAGMA user_version").fetchone()[0] == 6
     assert db.execute("SELECT content FROM messages").fetchone()[0] == "Owner transcript"
     assert db.execute("SELECT status FROM approvals").fetchone()[0] == "pending"
     assert db.execute("SELECT event FROM audit").fetchone()[0] == "tool_requested"

@@ -617,7 +617,7 @@ def test_capability_migration_preserves_schema4_and_restart(tmp_path):
         )
         db.commit()
         migrate(db, path)
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 6
         assert (
             json.loads(db.execute("SELECT value FROM settings").fetchone()[0])["memory_enabled"]
             is True

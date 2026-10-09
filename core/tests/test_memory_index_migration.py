@@ -2,8 +2,10 @@
 
 import json
 import sqlite3
+import threading
 from contextlib import closing
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
@@ -13,7 +15,8 @@ from kat_core.memory_retrieval import MemoryRetrieval
 from kat_core.memory_schemas import MemoryCreate, MemoryEdit, ProjectCreate
 from kat_core.memory_store import MemoryStore
 from kat_core.migrations import foundation, local_provider_settings, migrate
-from kat_core.storage import Store
+from kat_core.schemas import Message, SettingsUpdate
+from kat_core.storage import Store, timestamp
 
 BASELINE = {1: foundation, 2: local_provider_settings, 3: memory_schema}
 AUTHORITATIVE = (
@@ -29,6 +32,38 @@ AUTHORITATIVE = (
 )
 
 
+class Schema3Fixture(Store):
+    """Frozen historical writer: current Store rightly requires schema 6."""
+
+    def __init__(self, path: Path) -> None:
+        self._lock = threading.RLock()
+        self._db = sqlite3.connect(path, check_same_thread=False)
+        self._db.row_factory = sqlite3.Row
+        migrate(self._db, path, BASELINE)
+        self._db.execute("PRAGMA journal_mode=WAL")
+        self._db.execute("INSERT INTO settings VALUES(1,?)", (SettingsUpdate().model_dump_json(),))
+        self._db.commit()
+
+    def add_message(self, session_id, role, content):
+        message = Message(
+            id=str(uuid4()),
+            session_id=session_id,
+            role=role,
+            content=content,
+            created_at=timestamp(),
+        )
+        with self.transaction() as db:
+            db.execute(
+                "INSERT INTO messages(id,session_id,role,content,created_at) VALUES(?,?,?,?,?)",
+                (message.id, session_id, role, content, message.created_at),
+            )
+        return message
+
+    def save_settings(self, settings):
+        with self.transaction() as db:
+            db.execute("UPDATE settings SET value=? WHERE id=1", (settings.model_dump_json(),))
+
+
 def snapshot(db: sqlite3.Connection):
     return {
         table: [tuple(row) for row in db.execute(f"SELECT * FROM {table}")]
@@ -42,7 +77,7 @@ def test_upgrade_preserves_representative_030_database_and_wal_backup(
     path = tmp_path / "kat.sqlite3"
     with monkeypatch.context() as baseline:
         baseline.setattr(migrations, "MIGRATIONS", BASELINE)
-        store = Store(path)
+        store = Schema3Fixture(path)
         memories = MemoryStore(store)
         project = memories.create_project(ProjectCreate(name="Owner project"))
         session = store.create_session("Existing conversation")
@@ -132,7 +167,7 @@ def test_index_migration_failure_restores_original_fts_and_version(
     path = tmp_path / "kat.sqlite3"
     with monkeypatch.context() as baseline:
         baseline.setattr(migrations, "MIGRATIONS", BASELINE)
-        store = Store(path)
+        store = Schema3Fixture(path)
         try:
             MemoryStore(store).create(
                 MemoryCreate(content="main user is named Luis", confirmed=True)

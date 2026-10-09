@@ -71,3 +71,34 @@ def test_transient_tool_turn_answers_cannot_supply_stale_inference_evidence(
         {"role": "user", "content": "Tell me the time and open Calculator."},
     ]
     assert answer.content == "09:54; review the Notepad approval."
+
+
+def test_late_approval_result_is_associated_with_its_original_owner_turn() -> None:
+    original = message("user", "Read briefing.txt.").model_copy(update={"id": "original"})
+    pending = message("assistant", "Please approve.").model_copy(
+        update={"origin_user_message_id": original.id}
+    )
+    later = message("user", "What is two plus two?").model_copy(update={"id": "later"})
+    answer = message("assistant", "Four.").model_copy(update={"origin_user_message_id": later.id})
+    result = message("tool", "Private briefing contents.").model_copy(
+        update={"origin_user_message_id": original.id}
+    )
+    assert history([original, pending, later, answer, result]) == [
+        {"role": "user", "content": original.content},
+        {"role": "assistant", "content": TOOL_TURN_MARKER},
+        {"role": "user", "content": later.content},
+        {"role": "assistant", "content": "Four."},
+    ]
+
+
+def test_continued_private_answer_stays_excluded_after_source_tool_leaves_history_window() -> None:
+    private = message("assistant", "Copper Falcon; November 12.").model_copy(
+        update={"transient_tool_context": True, "origin_user_message_id": "old-owner"}
+    )
+    transcript = [message("tool", "Private source."), private]
+    transcript.extend(message("user", f"Later request {index}.") for index in range(99))
+    context = history(transcript)
+    assert len(context) == 100
+    assert context[0] == {"role": "assistant", "content": TOOL_TURN_MARKER}
+    assert "Copper Falcon" not in str(context)
+    assert private.content == "Copper Falcon; November 12."

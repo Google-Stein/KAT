@@ -136,16 +136,20 @@ async def test_pending_approval_survives_restart_and_competing_decisions(
             first = asyncio.create_task(http.post(endpoint, headers=AUTH, json={"approved": True}))
             try:
                 assert await asyncio.to_thread(entered.wait, 5), "Tool execution never started"
-                competing = await http.post(endpoint, headers=AUTH, json={"approved": True})
-                assert competing.status_code == 409
+                competing = asyncio.create_task(
+                    http.post(endpoint, headers=AUTH, json={"approved": True})
+                )
+                await asyncio.sleep(0)
+                assert not competing.done(), "Decision raced the session's active execution"
             finally:
                 release.set()
             completed = await first
+            assert (await competing).status_code == 200
             assert completed.status_code == 200
             assert completed.json()["status"] == "completed"
             assert (
                 await http.post(endpoint, headers=AUTH, json={"approved": True})
-            ).status_code == 409
+            ).status_code == 200
             assert executed == ["get_local_time"]
             audit = (await http.get("/audit", headers=AUTH)).json()
             relevant = [event for event in audit if event["approval_id"] == approval["id"]]

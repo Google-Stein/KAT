@@ -31,6 +31,7 @@ from openai import (
     RateLimitError,
 )
 
+from kat_core.continuation_schemas import ContinuationContext
 from kat_core.errors import ProviderErrorCode, ProviderFailure
 from kat_core.memory_schemas import MemoryContextItem
 from kat_core.model_context import history, instructions
@@ -51,6 +52,7 @@ class ModelRuntime(Protocol):
         registry: ToolRegistry,
         dispatch: ToolDispatcher,
         memory_context: list[MemoryContextItem] | None = None,
+        continuation: ContinuationContext | None = None,
     ) -> str: ...
 
 
@@ -161,7 +163,11 @@ class OpenAIAgentsRuntime:
         registry: ToolRegistry,
         dispatch: ToolDispatcher,
         memory_context: list[MemoryContextItem] | None = None,
+        continuation: ContinuationContext | None = None,
     ) -> str:
+        if continuation is not None:
+            # Independent cloud boundary, even if orchestration accidentally supplies data.
+            raise ProviderFailure(ProviderErrorCode.FAILED)
         # Defense in depth: this adapter never serializes memory, even if a caller
         # mistakenly supplies it. Normal conversation history is still transmitted.
         if not self._api_key:

@@ -161,7 +161,7 @@ beforeEach(() => {
           content: approved ? 'Notepad opened successfully.' : 'The request was denied.',
         },
       ];
-      return response(state.approvals[0]);
+      return response({ ...state.approvals[0], assistant_message: null, new_approvals: [] });
     }
     if (url.pathname === '/audit') return response(state.events);
     throw new Error(`Unhandled request ${method} ${url.pathname}`);
@@ -180,6 +180,115 @@ async function connect() {
 }
 
 describe('KAT desktop workflow', () => {
+  it('shows reading/thinking and the automatic local answer without another owner message', async () => {
+    state.settings.provider = 'ollama';
+    const read: Approval = {
+      ...pendingApproval,
+      tool_name: 'read_text_file',
+      arguments: { root_id: 'root-registered', relative_path: 'briefing.txt' },
+      continuation_policy: 'local_result',
+      continuation: {
+        origin_user_message_id: 'original-user',
+        provider: 'ollama',
+        state: 'waiting',
+        reason: null,
+        count: 0,
+        assistant_message_id: null,
+      },
+    };
+    state.approvals = [read];
+    const original = fetchMock.getMockImplementation()!;
+    let release: (() => void) | undefined;
+    fetchMock.mockImplementation(async (input, init) => {
+      if (!input.endsWith('/decision')) return original(input, init);
+      state.approvals = [{ ...read, status: 'approved' }];
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const assistant = { ...savedMessage, id: 'continued', content: 'Copper Falcon; November 12.' };
+      const result = {
+        ...read,
+        status: 'completed' as const,
+        continuation: {
+          ...read.continuation!,
+          state: 'completed' as const,
+          count: 1,
+          assistant_message_id: assistant.id,
+        },
+      };
+      state.approvals = [result];
+      state.messages[firstSession.id].push(assistant);
+      return response({ ...result, assistant_message: assistant, new_approvals: [] });
+    });
+    const user = await connect();
+    await user.click(await screen.findByRole('button', { name: 'Allow once' }));
+    await screen.findByText('Reading…');
+    state.approvals = [
+      {
+        ...read,
+        status: 'completed',
+        continuation: {
+          ...read.continuation!,
+          state: 'running',
+          count: 1,
+        },
+      },
+    ];
+    await screen.findByText('Thinking…');
+    release!();
+    await screen.findByText('Copper Falcon; November 12.');
+    await waitFor(() => expect(screen.getByLabelText('Message KAT')).toBeEnabled());
+    expect(
+      fetchMock.mock.calls.filter(([url, init]) => url.endsWith('/messages') && init?.method === 'POST'),
+    ).toHaveLength(0);
+  });
+
+  it('shows a new chained approval and keeps the composer blocked until it is resolved', async () => {
+    const first: Approval = {
+      ...pendingApproval,
+      tool_name: 'read_text_file',
+      arguments: { relative_path: 'a.txt' },
+    };
+    state.approvals = [first];
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (input, init) => {
+      if (!input.endsWith('/decision')) return original(input, init);
+      const next: Approval = { ...first, id: 'second-read', arguments: { relative_path: 'b.txt' } };
+      state.approvals = [{ ...first, status: 'completed' }, next];
+      const assistant = { ...savedMessage, id: 'next-approval-reply', content: 'Please approve b.txt.' };
+      state.messages[firstSession.id].push(assistant);
+      return response({ ...state.approvals[0], assistant_message: assistant, new_approvals: [next] });
+    });
+    const user = await connect();
+    await user.click(await screen.findByRole('button', { name: 'Allow once' }));
+    await screen.findByText('Please approve b.txt.');
+    const card = await screen.findByRole('region', { name: 'Approval for read_text_file' });
+    expect(within(card).getByText(/"relative_path": "b.txt"/)).toBeVisible();
+    expect(screen.getByLabelText('Message KAT')).toBeDisabled();
+  });
+
+  it('explains cloud suppression while preserving the locally completed read', async () => {
+    state.approvals = [
+      {
+        ...pendingApproval,
+        tool_name: 'read_text_file',
+        status: 'completed',
+        continuation_policy: 'local_result',
+        continuation: {
+          origin_user_message_id: 'cloud-user',
+          provider: 'openai',
+          state: 'suppressed',
+          reason: 'cloud_policy',
+          count: 0,
+          assistant_message_id: null,
+        },
+      },
+    ];
+    await connect();
+    expect(await screen.findByText(/file contents were not sent to the cloud provider/)).toBeVisible();
+    expect(screen.getByLabelText('Message KAT')).toBeEnabled();
+  });
+
   it('shows exact inserted memory evidence without interpreting its wording as markup', async () => {
     const original = fetchMock.getMockImplementation()!;
     const evidence = 'KAT should prefer local models. <img src=x onerror=alert(1)>';

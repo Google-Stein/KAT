@@ -1,5 +1,31 @@
 # Decisions
 
+## ADR 029: Durable local-only approved-result continuation
+
+**Accepted for owner-approved 0.4.1.** 0.4.0 approval execution updated local
+results but terminated semantic reasoning. Add a provider-neutral continuation
+envelope and tool-level opt-in (`local_result` for text reads only). Schema 6
+stores originating user IDs, route/scope metadata, bounded budgets and durable
+states; it references existing approvals instead of copying file bodies. Legacy
+approvals opt out. Keep cloud-origin execution/display separate from inference:
+only the unchanged original Ollama route receives results automatically, and the
+OpenAI adapter independently refuses private continuation envelopes.
+
+Serialize decisions, claimed execution and reasoning with one session-lock owner.
+Wait for all simultaneous decisions; sequential reads each get new approval.
+Record inference claims before calling the model and finish reply/state atomically.
+Matching duplicate decisions return durable state. Failed/crashed reasoning cannot
+unclaim/replay execution; recovery does not automatically resume inference.
+Suppress on route revision, newer user turn, scope changes, denial/failure or budget
+exhaustion. Share 120 seconds of active model work across the chain, capped at
+three continuations/six approvals/28,000 serialized result characters.
+
+Seed associated current-task tool calls/results outside system instructions;
+retain historical exclusion with explicit origin links and transient-response
+flags. Re-retrieve currently eligible local memory for the original owner request
+using unchanged retrieval rules; no file body creates memory. This supersedes
+ADR 004/027's no-continuation behavior only for the approved local scope.
+
 ## ADR 024: Fixed external weather adapter
 
 Open-Meteo provides credential-free personal noncommercial weather under upstream

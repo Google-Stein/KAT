@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from kat_core.continuation_schemas import ContinuationInfo, ContinuationPolicy
 from kat_core.endpoints import local_endpoint
 
 
@@ -30,6 +31,8 @@ class Message(StrictModel):
     role: Literal["user", "assistant", "tool"]
     content: str
     created_at: str
+    origin_user_message_id: str | None = None
+    transient_tool_context: bool = False
 
 
 class MessageCreate(StrictModel):
@@ -55,10 +58,18 @@ class Approval(StrictModel):
     result: dict[str, Any] | None = None
     error: str | None = None
     display_context: str | None = None
+    origin_user_message_id: str | None = None
+    continuation_policy: ContinuationPolicy = "none"
+    continuation: ContinuationInfo | None = None
 
 
 class ApprovalDecision(StrictModel):
     approved: bool
+
+
+class ApprovalDecisionResponse(Approval):
+    assistant_message: Message | None = None
+    new_approvals: list[Approval] = Field(default_factory=list)
 
 
 class ChatResponse(StrictModel):

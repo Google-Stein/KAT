@@ -1,5 +1,6 @@
 import type {
   Approval,
+  ApprovalDecisionResponse,
   AuditEvent,
   ChatResponse,
   CoreConnection,
@@ -178,7 +179,13 @@ export class CoreApi {
     );
   }
   decide(id: string, approved: boolean) {
-    return this.request<Approval>(`/approvals/${encodeURIComponent(id)}/decision`, 'POST', { approved });
+    return this.request<ApprovalDecisionResponse>(
+      `/approvals/${encodeURIComponent(id)}/decision`,
+      'POST',
+      { approved },
+      undefined,
+      180000,
+    );
   }
   settings(signal?: AbortSignal) {
     return this.request<Settings>('/settings', 'GET', undefined, signal);

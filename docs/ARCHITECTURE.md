@@ -36,6 +36,41 @@ The registry advertises tool definitions with typed schemas and permission/risk 
 
 ## Durable approval flow
 
+### Approved local continuation (0.4.1 design)
+
+An ordered schema-6 migration associates new approvals and tool/assistant messages
+with the originating user-message ID. A separate turn record stores the originating
+session, provider/model/loopback endpoint, route revision, project scope, execution
+budget, continuation count and safe state/reason. Private results are referenced
+from existing approval records, never copied into the turn record.
+
+Only tools opting into `local_result` continuation (initially `read_text_file`)
+can resume reasoning, and only on the unchanged originating Ollama route. After
+each decision, execution and continuation run under the same session lock. Resume
+waits until all approvals from that task are resolved; a denial/failure suppresses
+the chain. New tools use normal validation and individual approvals. At most six
+approvals and three automatic continuations belong to one owner request, with a
+shared 120-second active-model budget excluding owner decision time. Each tool
+keeps its 12-second deadline and each file its 64-KiB/12,000-character bounds;
+aggregate serialized approved-result context is capped at 28,000 characters.
+
+The runtime receives an explicit ephemeral current-task envelope. Ollama builds
+associated assistant tool calls and untrusted tool-result messages from completed
+approvals plus history ending at the original owner request. This does not replay
+historical tool results into later requests. Explicit origin links also suppress
+historical assistant continuations derived from those results.
+
+A cloud origin, route revision/model/endpoint change, newer owner turn, scope
+change, denial/failure or exhausted budget suppresses continuation. Explicitly
+approved execution still returns its local result. OpenAI independently refuses
+continuation envelopes. There is no provider fallback or automatic cloud sharing.
+Already-running local requests retain their fixed route; sent data cannot be
+retracted. Recovery marks interrupted running/result-available continuations as
+failed without replaying a tool or model. Pending unexecuted approvals remain
+reviewable. Repeated matching decisions return durable state; opposite decisions
+conflict. API responses and approval polling expose typed continuation status,
+assistant message and new approvals without transcript-timing guesses.
+
 1. A model tool call passes schema and allowlist validation.
 2. Policy either authorizes immediate execution or persists a pending approval.
 3. The tool returns a structured approval-required result to the current agent turn. The UI displays pending approvals separately from the model's prose.
@@ -114,8 +149,9 @@ collection metadata. Parameterless schemas explicitly declare no required fields
 System metrics use psutil and fixed Win32 APIs. File operations revalidate roots,
 paths, type and bounds, with anchored POSIX descriptors or pinned Windows handles.
 
-Content reads execute only after a claimed one-time approval. Results appear in
-the approval/transcript without automatically initiating another inference turn.
+Content reads execute only after a claimed one-time approval. In 0.4.0 results
+appeared in the approval/transcript without initiating another inference turn.
+The explicit local-only 0.4.1 mechanism above completes the interrupted task.
 Audit receives a metadata projection, never file bodies. Historical tool messages
 and tool-linked assistant replies retain the 0.2.1 exclusion policy; no new
 capability creates memory. Local system/files, external non-AI weather and

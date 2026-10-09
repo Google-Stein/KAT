@@ -18,6 +18,12 @@ roots. Returned text stays in the transcript, with metadata-only operational
 audit and no automatic memory. Weather internet access is separate from AI
 provider selection. See [CAPABILITIES.md](CAPABILITIES.md) for bounds.
 
+In 0.4.1, an approved file read automatically resumes its originating Ollama task,
+so KAT can answer questions or compare separately approved files without another
+owner message. Cloud-origin reads remain locally visible without automatic cloud
+file sharing. A newer conversation turn or changed route suppresses continuation;
+failures never replay an approved read. This adds reasoning continuity, not authority.
+
 ## Interaction principles
 
 - Keep the chat interface calm, readable, and keyboard accessible.

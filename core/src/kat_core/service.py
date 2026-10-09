@@ -1,19 +1,28 @@
 """Conversation orchestration, permission gates, and durable tool outcomes."""
 
 import asyncio
-import json
 import logging
+import sqlite3
+import time
 from typing import Any
 
 from kat_core.capability_schemas import CapabilityFailure
+from kat_core.continuation_schemas import (
+    MAX_RESULT_CONTEXT_CHARS,
+    MODEL_BUDGET_SECONDS,
+    ApprovedToolResult,
+    ContinuationContext,
+    TurnRecord,
+)
 from kat_core.errors import ProviderErrorCode, ProviderFailure
 from kat_core.memory_retrieval import MemoryRetrieval
 from kat_core.memory_store import MemoryStore
-from kat_core.permissions import PermissionPolicy
 from kat_core.provider import ModelRuntime, ProviderUnavailableError
-from kat_core.schemas import Approval, ChatResponse
+from kat_core.schemas import Approval, ApprovalDecisionResponse, ChatResponse, Message
 from kat_core.storage import Store
-from kat_core.tools import ToolExecutionError, ToolRegistry
+from kat_core.tool_dispatch import TaskDispatcher
+from kat_core.tools import ToolRegistry
+from kat_core.turn_store import TurnStore
 
 logger = logging.getLogger("kat_core.service")
 
@@ -29,6 +38,7 @@ class ApprovalConflictError(RuntimeError):
 class ChatService:
     def __init__(self, store: Store, runtime: ModelRuntime, registry: ToolRegistry) -> None:
         self.store, self.runtime, self.registry = store, runtime, registry
+        self.turns = TurnStore(store)
         self._session_locks: dict[str, asyncio.Lock] = {}
 
     def lock(self, session_id: str) -> asyncio.Lock:
@@ -41,195 +51,194 @@ class ChatService:
         if lock.locked():
             raise SessionBusyError("This conversation already has a request in progress")
         async with lock:
-            settings = self.store.settings()
-            user_message = self.store.add_message(session_id, "user", content)
+            user = self.store.add_message(session_id, "user", content)
             session = self.store.session(session_id)
-            retrieval = MemoryRetrieval(MemoryStore(self.store))
-            memory_context = (
-                retrieval.retrieve(content, session.project_id if session else None)
-                if settings.memory_enabled and settings.provider == "ollama"
-                else []
+            turn = self.turns.create(user, session.project_id if session else None)
+            assistant, approvals = await self._model_step(turn)
+            return ChatResponse(user_message=user, assistant_message=assistant, approvals=approvals)
+
+    async def _model_step(
+        self, turn: TurnRecord, continuation: ContinuationContext | None = None
+    ) -> tuple[Message, list[Approval]]:
+        settings = self.store.settings()
+        messages = self.store.messages(turn.session_id)
+        origin_index = next(
+            i for i, m in enumerate(messages) if m.id == turn.origin_user_message_id
+        )
+        messages = messages[: origin_index + 1]
+        retrieval = MemoryRetrieval(MemoryStore(self.store))
+        memory = (
+            retrieval.retrieve(messages[-1].content, turn.project_id)
+            if settings.memory_enabled and turn.provider == "ollama"
+            else []
+        )
+        # Fix the original route even if owner Settings changes while inference runs.
+        settings = settings.model_copy(
+            update={
+                "provider": turn.provider,
+                "model": turn.model,
+                "local_endpoint": turn.local_endpoint,
+            }
+        )
+        dispatch = TaskDispatcher(self.store, self.registry, turn, self._execute)
+        started = time.monotonic()
+        try:
+            remaining = MODEL_BUDGET_SECONDS - turn.spent_seconds
+            if remaining <= 0:
+                raise TimeoutError()
+            async with asyncio.timeout(remaining):
+                if continuation is not None:
+                    text = await self.runtime.respond(
+                        messages,
+                        settings,
+                        self.registry,
+                        dispatch,
+                        memory,
+                        continuation=continuation,
+                    )
+                elif memory:
+                    text = await self.runtime.respond(
+                        messages, settings, self.registry, dispatch, memory
+                    )
+                else:
+                    text = await self.runtime.respond(messages, settings, self.registry, dispatch)
+        except BaseException as error:
+            if isinstance(error, asyncio.CancelledError):
+                self.turns.state(turn.origin_user_message_id, "failed", "request_interrupted")
+                raise
+            failure = (
+                error
+                if isinstance(error, ProviderFailure)
+                else ProviderFailure(
+                    ProviderErrorCode.TIMEOUT
+                    if isinstance(error, TimeoutError)
+                    else ProviderErrorCode.FAILED
+                )
             )
-            created_approvals: list[str] = []
+            self.turns.state(turn.origin_user_message_id, "failed", failure.code.value)
+            logger.warning(
+                "model_request_failed session_id=%s category=%s",
+                turn.session_id,
+                failure.code.value,
+            )
+            self.store.add_audit(
+                "provider_error",
+                session_id=turn.session_id,
+                error=str(failure),
+                details={"code": failure.code.value, "provider": turn.provider},
+            )
+            raise failure from None
+        finally:
+            self.turns.add_time(turn.origin_user_message_id, time.monotonic() - started)
+        pending = [a for a in self.turns.approvals(turn) if a.status == "pending"]
 
-            async def dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-                try:
-                    spec = self.registry.get(name)
-                    validated = self.registry.validate_args(name, arguments)
-                    display_context = await asyncio.wait_for(
-                        asyncio.to_thread(
-                            self.registry.approval_context, name, validated.model_dump()
-                        ),
-                        timeout=12,
-                    )
-                except TimeoutError:
-                    self.store.add_audit(
-                        "tool_rejected",
-                        session_id=session_id,
-                        tool_name=name,
-                        details={"reason": "tool_timeout"},
-                        error="Tool request validation timed out.",
-                    )
-                    return {
-                        "status": "failed",
-                        "error_code": "tool_timeout",
-                        "error": "Tool request validation timed out.",
-                    }
-                except CapabilityFailure as error:
-                    self.store.add_audit(
-                        "tool_rejected",
-                        session_id=session_id,
-                        tool_name=name,
-                        details={"reason": error.code},
-                        error=str(error),
-                    )
-                    capability_failure = {
-                        "status": "failed",
-                        "error_code": error.code,
-                        "error": str(error),
-                    }
-                    if name == "read_text_file" and error.code == "file_not_found":
-                        capability_failure["retry_hint"] = (
-                            "Fetch a fresh list_directory for this root with relative_path '.'; "
-                            "use the matching entry's relative_path exactly, "
-                            "without the root label. "
-                            "A corrected read still requires its own owner approval."
-                        )
-                    return capability_failure
-                except (ValueError, TypeError, ToolExecutionError) as error:
-                    known = name in {item.name for item in self.registry.specs()}
-                    feedback = self.registry.get(name).validation_feedback(error) if known else []
-                    self.store.add_audit(
-                        "tool_rejected",
-                        session_id=session_id,
-                        tool_name=name if known else None,
-                        details={
-                            "reason": "invalid_or_disallowed_request",
-                            "field_errors": feedback,
-                            "argument_count": len(arguments),
-                            "value_types": sorted(
-                                type(value).__name__ for value in arguments.values()
-                            ),
-                        },
-                        error="Invalid or disallowed tool request",
-                    )
-                    failure: dict[str, Any] = {
-                        "status": "failed",
-                        "error": "Invalid or disallowed tool arguments",
-                    }
-                    if known:
-                        fields = list(self.registry.get(name).arguments_model.model_fields)
-                        failure.update(
-                            error_code="invalid_tool_arguments",
-                            expected_arguments=fields,
-                            field_errors=feedback,
-                            error="Invalid tool arguments. Retry using only the declared fields: "
-                            + (", ".join(fields) if fields else "none; pass an empty object {}"),
-                        )
-                        if any(item["field"] == "root_id" for item in feedback):
-                            failure["retry_hint"] = (
-                                "Copy the exact root_id from the approved roots, including its "
-                                "hyphen and all hexadecimal characters. Preserve the requested "
-                                "relative_path. Retry once; never substitute another file."
-                            )
-                    return failure
-                clean_arguments = validated.model_dump()
-                self.store.add_audit(
-                    "tool_requested",
-                    session_id=session_id,
-                    tool_name=name,
-                    details={"arguments": clean_arguments, "risk": spec.risk.value},
-                )
-                policy = PermissionPolicy(settings.require_approval_for_low_risk)
-                if spec.approval_required or policy.requires_approval(spec.risk):
-                    approval = self.store.create_approval(
-                        session_id,
-                        name,
-                        clean_arguments,
-                        spec.risk.value,
-                        display_context=display_context,
-                    )
-                    created_approvals.append(approval.id)
-                    self.store.add_audit(
-                        "approval_requested",
-                        session_id=session_id,
-                        tool_name=name,
-                        approval_id=approval.id,
-                        details={"risk": spec.risk.value},
-                    )
-                    return {
-                        "status": "pending_approval",
-                        "approval_id": approval.id,
-                        "tool_name": name,
-                        "arguments": clean_arguments,
-                    }
-                self.store.add_audit(
-                    "approval_decision",
-                    session_id=session_id,
-                    tool_name=name,
-                    details={"approved": True, "source": "low_risk_policy"},
-                )
-                outcome = await self._execute(name, clean_arguments)
-                self.store.add_audit(
-                    "tool_result",
-                    session_id=session_id,
-                    tool_name=name,
-                    details=self.registry.audit_outcome(name, outcome),
-                    error=outcome.get("error"),
-                )
-                self.store.add_message(
-                    session_id, "tool", json.dumps({"tool_name": name, **outcome})
-                )
-                return outcome
+        def commit_reply(db: sqlite3.Connection, message: Message) -> None:
+            retrieval.record_usage(memory, turn.session_id, message.id, db=db)
+            self.turns.state(
+                turn.origin_user_message_id,
+                "waiting" if pending else "completed",
+                assistant_message_id=message.id,
+                db=db,
+            )
 
-            try:
-                async with asyncio.timeout(120):
-                    if memory_context:
-                        text = await self.runtime.respond(
-                            self.store.messages(session_id),
-                            settings,
-                            self.registry,
-                            dispatch,
-                            memory_context,
-                        )
-                    else:
-                        text = await self.runtime.respond(
-                            self.store.messages(session_id), settings, self.registry, dispatch
-                        )
-            except Exception as error:
-                failure = (
-                    error
-                    if isinstance(error, ProviderFailure)
-                    else ProviderFailure(
-                        ProviderErrorCode.TIMEOUT
-                        if isinstance(error, TimeoutError)
-                        else ProviderErrorCode.FAILED
-                    )
-                )
-                logger.warning(
-                    "model_request_failed session_id=%s category=%s", session_id, failure.code.value
-                )
-                self.store.add_audit(
-                    "provider_error",
-                    session_id=session_id,
-                    error=str(failure),
-                    details={"code": failure.code.value, "provider": settings.provider},
-                )
-                raise failure from None
-            assistant = self.store.add_message(
-                session_id,
-                "assistant",
-                text,
-                after_insert=lambda db, message: retrieval.record_usage(
-                    memory_context, session_id, message.id, db=db
+        assistant = self.store.add_message(
+            turn.session_id,
+            "assistant",
+            text,
+            origin_user_message_id=turn.origin_user_message_id,
+            transient_tool_context=continuation is not None,
+            after_insert=commit_reply,
+        )
+        approvals = [self.store.approval(a) for a in dispatch.created_approvals]
+        return assistant, [a for a in approvals if a is not None]
+
+    def _decision_response(self, approval_id: str) -> ApprovalDecisionResponse:
+        approval = self.store.approval(approval_id)
+        assert approval is not None
+        info = approval.continuation
+        assistant = None
+        if info and info.count > 0 and info.assistant_message_id:
+            assistant = next(
+                (
+                    m
+                    for m in self.store.messages(approval.session_id)
+                    if m.id == info.assistant_message_id
                 ),
+                None,
             )
-            approvals = [self.store.approval(approval_id) for approval_id in created_approvals]
-            return ChatResponse(
-                user_message=user_message,
-                assistant_message=assistant,
-                approvals=[item for item in approvals if item is not None],
+        pending = [
+            a
+            for a in self.store.approvals(approval.session_id)
+            if a.origin_user_message_id == approval.origin_user_message_id and a.status == "pending"
+        ]
+        return ApprovalDecisionResponse(
+            **approval.model_dump(), assistant_message=assistant, new_approvals=pending
+        )
+
+    def _audit_continuation(self, approval: Approval) -> None:
+        info = self.turns.info(approval.origin_user_message_id)
+        if info is not None:
+            self.store.add_audit(
+                "continuation_status",
+                session_id=approval.session_id,
+                tool_name=approval.tool_name,
+                approval_id=approval.id,
+                details=info.model_dump(),
             )
+
+    async def _continue(self, approval: Approval) -> None:
+        turn = (
+            self.turns.get(approval.origin_user_message_id)
+            if approval.origin_user_message_id
+            else None
+        )
+        if turn is None or turn.state in {"completed", "suppressed", "failed"}:
+            return
+        approvals = self.turns.approvals(turn)
+        eligible = [a for a in approvals if a.continuation_policy == "local_result"]
+        if not eligible:
+            if not any(a.status == "pending" for a in approvals):
+                self.turns.state(turn.origin_user_message_id, "completed")
+            return
+        reason = self.turns.suppression(turn)
+        if any(a.status == "denied" for a in approvals):
+            reason = "approval_denied"
+        elif any(a.status == "failed" for a in approvals):
+            reason = "tool_failed"
+        if reason:
+            self.turns.state(turn.origin_user_message_id, "suppressed", reason)
+            self._audit_continuation(approval)
+            return
+        if any(a.status in {"pending", "approved"} for a in approvals):
+            self._audit_continuation(approval)
+            return
+        context = ContinuationContext(
+            origin_user_message_id=turn.origin_user_message_id,
+            results=[
+                ApprovedToolResult(
+                    approval_id=a.id,
+                    tool_name=a.tool_name,
+                    arguments=a.arguments,
+                    outcome={"status": "completed", "result": a.result},
+                )
+                for a in eligible
+                if a.status == "completed"
+            ],
+        )
+        if len(context.model_dump_json()) > MAX_RESULT_CONTEXT_CHARS:
+            self.turns.state(turn.origin_user_message_id, "suppressed", "result_context_limit")
+            self._audit_continuation(approval)
+            return
+        if not self.turns.claim_continuation(turn.origin_user_message_id):
+            return
+        self._audit_continuation(approval)
+        try:
+            await self._model_step(turn, context)
+        except ProviderFailure:
+            # Execution remains completed; continuation failure can never unclaim it.
+            pass
+        finally:
+            self._audit_continuation(approval)
 
     async def _execute(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -251,23 +260,26 @@ class ChatService:
             )
             return {"status": "failed", "error": "The configured tool could not be executed"}
 
-    async def decide(self, approval: Approval, approved: bool) -> Approval:
-        lock = self.lock(approval.session_id)
-        if lock.locked():
-            raise SessionBusyError("Wait for the active conversation request to finish")
-        async with lock:
+    async def decide(self, approval: Approval, approved: bool) -> ApprovalDecisionResponse:
+        # One owner for execution + continuation. Do not recursively acquire this lock.
+        async with self.lock(approval.session_id):
+            current = self.store.approval(approval.id)
+            assert current is not None
+            if current.status != "pending":
+                if (current.status == "denied") == approved:
+                    raise ApprovalConflictError("This approval has a different recorded decision")
+                return self._decision_response(approval.id)
             if not self.store.claim_approval(approval.id, approved):
-                raise ApprovalConflictError("This approval has already been decided")
+                return self._decision_response(approval.id)
             if approved:
-                outcome = await self._execute(approval.tool_name, approval.arguments)
+                outcome = await self._execute(current.tool_name, current.arguments)
                 self.store.complete_approval(
-                    approval.id,
+                    current.id,
                     result=outcome.get("result"),
                     error=outcome.get("error"),
-                    audit_result=self.registry.audit_outcome(approval.tool_name, outcome).get(
+                    audit_result=self.registry.audit_outcome(current.tool_name, outcome).get(
                         "result"
                     ),
                 )
-            updated = self.store.approval(approval.id)
-            assert updated is not None
-            return updated
+            await self._continue(current)
+            return self._decision_response(current.id)

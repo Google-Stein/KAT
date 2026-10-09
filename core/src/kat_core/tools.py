@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -278,6 +278,7 @@ class ToolSpec:
     approval_required: bool = False
     transient: bool = True
     external_network: bool = False
+    continuation_policy: Literal["none", "local_result"] = "none"
 
     def validate_args(self, arguments: Mapping[str, Any]) -> BaseModel:
         return self.arguments_model.model_validate(dict(arguments))

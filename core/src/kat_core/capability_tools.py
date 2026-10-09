@@ -129,6 +129,7 @@ class BoundedCapabilities:
                     external_network=external,
                     approval_required=risk != ToolRisk.LOW,
                     transient=True,
+                    continuation_policy="local_result" if name == "read_text_file" else "none",
                 ),
                 replace=True,
             )

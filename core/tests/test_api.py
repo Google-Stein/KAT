@@ -121,7 +121,7 @@ def test_approval_is_durable_and_executes_once(
                 another.post(
                     f"/approvals/{approval['id']}/decision", json={"approved": True}
                 ).status_code
-                == 409
+                == 200
             )
             launch.assert_called_once()
         tool_messages = [

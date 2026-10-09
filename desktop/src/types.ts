@@ -30,6 +30,16 @@ export interface Message {
   role: 'user' | 'assistant' | 'tool';
   content: string;
   created_at: string;
+  origin_user_message_id?: string | null;
+  transient_tool_context?: boolean;
+}
+export interface ContinuationInfo {
+  origin_user_message_id: string;
+  provider: 'openai' | 'ollama';
+  state: 'running' | 'waiting' | 'result_available' | 'completed' | 'suppressed' | 'failed';
+  reason: string | null;
+  count: number;
+  assistant_message_id: string | null;
 }
 export interface Approval {
   display_context?: string | null;
@@ -42,6 +52,13 @@ export interface Approval {
   created_at: string;
   result?: Record<string, unknown> | null;
   error?: string | null;
+  origin_user_message_id?: string | null;
+  continuation_policy?: 'none' | 'local_result';
+  continuation?: ContinuationInfo | null;
+}
+export interface ApprovalDecisionResponse extends Approval {
+  assistant_message: Message | null;
+  new_approvals: Approval[];
 }
 export interface Settings {
   provider: 'openai' | 'ollama';

@@ -66,9 +66,30 @@ Blocking OS operations on a failed local disk remain subject to the OS; network
 roots are prohibited. Work runs outside the API event loop.
 
 Tool results enter the active loop when immediately authorized. Content reads
-execute only after approval, then return in the approval card/transcript; they do
-not automatically start a new model request. Both providers use the same dispatcher.
+execute only after approval, then return in the approval card/transcript. In 0.4.1
+an unchanged originating Ollama task may resume with these results as untrusted
+tool data. Cloud-origin reads do not automatically send contents to any model.
+Both providers use the same dispatcher.
 Operational audit records file metadata/byte counts only, not bodies. The normal
 local SQLite transcript and approval result do retain returned text; older tool
 messages/replies remain excluded from future inference. No automatic memory is
 created. Explicit Remember on ordinary user/assistant text keeps its existing rules.
+
+## Approved task continuation limits (0.4.1)
+
+One owner request can create at most six individual approvals and three automatic
+continuations. All initial/resumed inference shares a 120-second active budget;
+time spent waiting for owner approval is excluded. Local HTTP requests keep their
+90-second bound; each tool keeps its 12-second deadline. The 64-KiB file and 12,000
+returned-character limits are unchanged. Aggregate serialized approved results
+are capped at 28,000 characters; oversized combinations remain visible locally
+but do not continue automatically. Model/token limitations may fail sooner.
+
+Sequential reads retain earlier approved results only inside that active task.
+Simultaneous approvals wait until all decisions resolve, then one model call
+continues deterministically under the session lock. Denial/failure suppresses the
+chain. Each additional read still requires a new approval. A changed provider,
+model, endpoint, route revision, project scope or newer owner message suppresses
+automatic reasoning but permits exact explicitly approved execution when safe.
+Restart never retries claimed reads or interrupted reasoning. A completed local
+result remains available; its model answer is not falsely marked completed.

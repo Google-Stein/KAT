@@ -2,7 +2,8 @@
 
 from collections.abc import Callable
 
-from kat_core.errors import ProviderFailure
+from kat_core.continuation_schemas import ContinuationContext
+from kat_core.errors import ProviderErrorCode, ProviderFailure
 from kat_core.local_provider import OllamaRuntime
 from kat_core.memory_schemas import MemoryContextItem
 from kat_core.provider import ModelRuntime, OpenAIAgentsRuntime, ToolDispatcher
@@ -80,7 +81,14 @@ class SelectedRuntime:
         registry: ToolRegistry,
         dispatch: ToolDispatcher,
         memory_context: list[MemoryContextItem] | None = None,
+        continuation: ContinuationContext | None = None,
     ) -> str:
+        if continuation is not None:
+            if settings.provider != "ollama":
+                raise ProviderFailure(ProviderErrorCode.FAILED)
+            return await self.registry.get(settings).respond(
+                messages, settings, registry, dispatch, memory_context, continuation
+            )
         runtime = self.registry.get(settings)
         if settings.provider == "ollama" and memory_context:
             return await runtime.respond(messages, settings, registry, dispatch, memory_context)

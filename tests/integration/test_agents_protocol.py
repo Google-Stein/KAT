@@ -15,9 +15,135 @@ from openai import AsyncOpenAI as OpenAIClient
 
 from kat_core.app import create_app
 from kat_core.config import CoreConfig
+from kat_core.continuation_schemas import ApprovedToolResult, ContinuationContext
+from kat_core.errors import ProviderFailure
+from kat_core.provider import OpenAIAgentsRuntime
+from kat_core.schemas import SettingsUpdate
 from kat_core.tools import ApplicationAllowlist, ToolRegistry
 
 TOKEN = "agents-protocol-test-token-at-least-32-characters"
+
+
+@pytest.mark.asyncio
+async def test_actual_openai_adapter_never_receives_approved_file_contents(tmp_path, monkeypatch):
+    private = "PRIVATE_FILE_COPPER_FALCON_NOVEMBER_12"
+    folder = tmp_path / "approved"
+    folder.mkdir()
+    (folder / "private.txt").write_text(private, encoding="utf-8")
+    requests = []
+    root_id = ""
+
+    def endpoint(request):
+        body = json.loads(request.content)
+        assert private not in json.dumps(body), "Approved file data reached cloud transport"
+        requests.append(body)
+        if len(requests) == 1:
+            output = [
+                {
+                    "id": "fc_read",
+                    "type": "function_call",
+                    "call_id": "call_read",
+                    "name": "read_text_file",
+                    "arguments": json.dumps({"root_id": root_id, "relative_path": "private.txt"}),
+                    "status": "completed",
+                }
+            ]
+        else:
+            output = [
+                {
+                    "id": f"msg_{len(requests)}",
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "Review the local approval."
+                            if len(requests) == 2
+                            else "New answer.",
+                            "annotations": [],
+                            "logprobs": [],
+                        }
+                    ],
+                }
+            ]
+        return httpx.Response(200, json=response_output(output, len(requests)))
+
+    def make_client(**kwargs):
+        return OpenAIClient(
+            **kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(endpoint))
+        )
+
+    monkeypatch.setattr("kat_core.provider.AsyncOpenAI", make_client)
+
+    async def forbid_fallback(*args, **kwargs):
+        raise AssertionError("Cloud task fell back to Ollama")
+
+    monkeypatch.setattr("kat_core.local_provider.OllamaRuntime.respond", forbid_fallback)
+    app = create_app(
+        CoreConfig(
+            data_dir=tmp_path / "data", api_token=TOKEN, openai_api_key="synthetic-key-no-network"
+        ),
+        registry=ToolRegistry(ApplicationAllowlist([])),
+    )
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://127.0.0.1",
+            headers={"Authorization": f"Bearer {TOKEN}"},
+        ) as client:
+            root_id = (
+                await client.post(
+                    "/capabilities/roots", json={"label": "Private", "path": str(folder)}
+                )
+            ).json()["id"]
+            session = (await client.post("/sessions", json={})).json()["id"]
+            first = await client.post(
+                f"/sessions/{session}/messages",
+                json={"content": "Read private.txt and summarize it."},
+            )
+            assert first.status_code == 200
+            approval = first.json()["approvals"][0]
+            result = (
+                await client.post(f"/approvals/{approval['id']}/decision", json={"approved": True})
+            ).json()
+            assert result["status"] == "completed" and result["result"]["content"] == private
+            assert result["continuation"]["reason"] == "cloud_policy"
+            assert result["assistant_message"] is None and len(requests) == 2
+            again = await client.post(
+                f"/approvals/{approval['id']}/decision", json={"approved": True}
+            )
+            assert again.json() == result and len(requests) == 2
+            assert (
+                await client.post(
+                    f"/sessions/{session}/messages", json={"content": "New unrelated question"}
+                )
+            ).status_code == 200
+            assert len(requests) == 3
+            assert private not in json.dumps((await client.get("/audit")).json())
+            # The adapter itself refuses even an erroneously supplied private envelope.
+            context = ContinuationContext(
+                origin_user_message_id=approval["origin_user_message_id"],
+                results=[
+                    ApprovedToolResult(
+                        approval_id=approval["id"],
+                        tool_name="read_text_file",
+                        arguments=approval["arguments"],
+                        outcome={"result": {"content": private}},
+                    )
+                ],
+            )
+            with pytest.raises(ProviderFailure):
+                await OpenAIAgentsRuntime("synthetic-key-no-network").respond(
+                    [],
+                    SettingsUpdate(),
+                    app.state.service.registry,
+                    forbid_fallback,
+                    continuation=context,
+                )
+            assert len(requests) == 3
+    finally:
+        app.state.store.close()
 
 
 def response_output(output: list[dict[str, Any]], index: int) -> dict[str, Any]:

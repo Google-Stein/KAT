@@ -1,5 +1,30 @@
 # Validation record
 
+## KAT 0.4.1 — approved local tool continuation
+
+Baseline is released v0.4.0, source `74fb245683903209af1518960a7b97c7ab88bdc0`.
+**Release validation is pending.** New deterministic checks use the production
+Ollama adapter and actual OpenAI SDK with synthetic transports. They are separate
+from installed real-Ollama acceptance. The existing Core/Desktop/Windows gates
+remain mandatory; counts and actual Windows runs will be recorded after completion.
+
+### Candidate checks in the cloud workspace
+
+| Command/check | Actual result |
+| --- | --- |
+| Core `pytest tests ../tests/integration -q` | **291 passed, one Windows-only test skipped**; includes production local transport with scripted inference, SDK cloud-body exclusion, duplicate/concurrent decisions, chain/result/approval/time bounds, provider changes, recovery, schema-5 upgrade and history-window isolation |
+| Core/scripts/integration `ruff check`, `ruff format --check`, Core `mypy` | Passed; **35** typed source modules |
+| Desktop `npm test` | **44 passed**, including automatic answer, chained approval and cloud suppression UI |
+| Desktop `npm run lint`, `format:check`, `typecheck`, `build` | Passed at version 0.4.1 |
+| Native `cargo test --locked --no-default-features`, `cargo fmt --check` | **20 passed**, four opt-in/fixture cases ignored; format passed |
+| Linux and Windows-target `cargo clippy ... --no-default-features -- -D warnings` | Passed |
+| Core PyInstaller one-directory build | Passed with Python 3.12.14 |
+| Source Core process smoke | Passed authenticated startup, keyless error, restart persistence and shutdown |
+| Packaged Core process smoke and native real-Core integrations | Passed packaged authenticated startup/persistence/shutdown; **three** development/packaged child and worker-lifetime integrations executed and passed |
+| PowerShell startup diagnostic tests | **18 passed** using writable XDG directories; the initial Linux invocation could not create PowerShell's cache in its read-only home |
+
+These checks do not constitute installed Windows or real-Ollama validation.
+
 ## KAT 0.4 — bounded local capabilities
 
 Baseline is released v0.3.1, source

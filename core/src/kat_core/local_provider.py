@@ -5,6 +5,7 @@ from typing import Any
 
 import httpx
 
+from kat_core.continuation_schemas import ContinuationContext
 from kat_core.endpoints import local_endpoint
 from kat_core.errors import ProviderErrorCode, ProviderFailure
 from kat_core.memory_schemas import MemoryContextItem
@@ -124,11 +125,33 @@ class OllamaRuntime:
         registry: ToolRegistry,
         dispatch: ToolDispatcher,
         memory_context: list[MemoryContextItem] | None = None,
+        continuation: ContinuationContext | None = None,
     ) -> str:
         context: list[dict[str, Any]] = [
             {"role": "system", "content": instructions(registry, has_memory=bool(memory_context))},
             *working_context(messages, memory_context),
         ]
+        if continuation is not None:
+            # Explicit associated results for this interrupted task, never history replay.
+            for item in continuation.results:
+                context.extend(
+                    [
+                        {
+                            "role": "assistant",
+                            "content": "",
+                            "tool_calls": [
+                                {"function": {"name": item.tool_name, "arguments": item.arguments}}
+                            ],
+                        },
+                        {
+                            "role": "tool",
+                            "tool_name": item.tool_name,
+                            "content": json.dumps(
+                                {"approval_id": item.approval_id, **item.outcome}
+                            ),
+                        },
+                    ]
+                )
         async with self.client() as client:
             info = await self.request(client, "POST", "/api/show", {"model": settings.model})
             require_local_model(info, settings.model)

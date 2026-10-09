@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { ArrowUp, Clock3, MessageSquare, Sparkles, Terminal, UserRound } from 'lucide-react';
 import { ApprovalCard } from './ApprovalCard';
 import { ToolResultView } from './ToolResultView';
+import { continuationExplanation } from './continuation-labels';
 import type { Approval, Message, Session, Settings } from './types';
 import type { MemoryUsage, Project } from './memory-types';
 
@@ -49,6 +50,11 @@ export function ChatView({
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const pending = approvals.filter((approval) => approval.status === 'pending');
+  const continuationNotices = new Map(
+    approvals
+      .filter((a) => a.continuation_policy === 'local_result' && a.continuation)
+      .map((a) => [a.continuation!.origin_user_message_id, a.continuation!]),
+  );
   useEffect(() => {
     endRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'end' });
   }, [messages, approvals, busy]);
@@ -219,6 +225,14 @@ export function ChatView({
         {pending.map((approval) => (
           <ApprovalCard key={approval.id} approval={approval} busy={busy} onDecision={onDecision} />
         ))}
+        {[...continuationNotices.values()].map((info) => {
+          const explanation = continuationExplanation(info);
+          return explanation ? (
+            <p key={info.origin_user_message_id} className="composer-note" role="status">
+              {explanation}
+            </p>
+          ) : null;
+        })}
         {busy && (
           <div className="thinking" role="status">
             <div className="message-avatar assistant">K</div>
@@ -227,7 +241,13 @@ export function ChatView({
               <i />
               <i />
             </span>
-            <span>KAT is working…</span>
+            <span>
+              {approvals.some((a) => a.status === 'approved')
+                ? 'Reading…'
+                : approvals.some((a) => a.continuation?.state === 'running' && a.continuation.count > 0)
+                  ? 'Thinking…'
+                  : 'KAT is working…'}
+            </span>
           </div>
         )}
         <div ref={endRef} />

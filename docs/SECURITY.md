@@ -30,11 +30,39 @@ tools. Removal revokes pending reads. Only bounded UTF-8 files with allowlisted
 text extensions are read; binaries, oversized files and special files are rejected.
 Returned text is rendered as escaped text. Files cannot be written, renamed or
 deleted through tools. File audit stores metadata/byte counts, not bodies; the
-normal local transcript and approval record retain the text. No implicit model
-continuation or automatic memory extraction occurs after approval. Review
+normal local transcript and approval record retain the text. Explicit local-only
+continuation is described below; automatic memory extraction remains absent. Review
 [CAPABILITIES.md](CAPABILITIES.md) for limits and the same-user threat boundary.
 
 ## Trust boundaries
+
+### Approved local file continuation (0.4.1)
+
+Only `read_text_file` opts into `local_result`. A matching originating Ollama route
+may receive bounded completed approval results as current-task tool data, outside
+privileged instructions. Automatic reasoning does not grant another read, root,
+application or provider change; new calls pass the original strict dispatcher.
+OpenAI independently refuses continuation envelopes. A cloud-origin read can
+execute after owner approval and be stored locally, but does not automatically
+send its body to any model. No “send to cloud” consent is implemented.
+
+Durable user IDs and provider route revisions prevent attachment to a newer user
+request or changed model/endpoint, including a route changed away and back. Project
+scope changes also suppress continuation. Session locking and atomic approval
+claims retain at-most-once execution. Matching duplicate decisions return recorded
+state; conflicting decisions are refused. A continuation failure never resets an
+approval. Recovery marks interrupted inference as failed without automatically
+rerunning inference or rereading files. Already pending unexecuted approvals stay
+reviewable; legacy approvals lack a trustworthy origin and never auto-continue.
+
+Turn bookkeeping contains metadata/references only, with no extra private-body
+copy. Audit stores IDs, provider, state, counts and safe failure categories.
+Existing approvals/transcripts still retain file text; assistant reasoning may
+also paraphrase it locally. Those tool-derived assistant messages carry a durable
+transient flag and remain excluded from future ordinary inference, even when
+their earlier tool record falls outside the context window. Explicit Remember
+remains owner controlled and memory injection remains local only. An already
+running local request cannot retract data previously sent to its fixed backend.
 
 The model, its replies, and all proposed tool arguments are untrusted. Validation, risk classification, authorization, and execution happen inside Core. Model prose cannot grant permission. The webview has only narrow native lifecycle commands; arbitrary shell access is absent.
 

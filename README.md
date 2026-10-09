@@ -7,6 +7,21 @@ This release supports explicit OpenAI or local Ollama conversation, session hist
 
 ## Bounded capabilities (0.4)
 
+### Approved file reasoning (0.4.1)
+
+With local Ollama, ask “Read notes.txt and tell me the code name and deadline.”
+After **Allow once**, KAT reads that file and automatically continues the original
+task. Comparing two files requires two separate approvals; no second owner chat
+message is needed. File data is untrusted evidence, never authority.
+
+Automatic file reasoning is **local Ollama only**. A cloud-originated read may be
+approved and displayed locally, but its contents are not automatically returned
+to OpenAI. Changing provider/model/endpoint or advancing the conversation
+suppresses the old continuation. Completed reads are never repeated by retries
+or recovery. If analysis fails, the local result remains visible; a new request
+needs its own approval. See [CAPABILITIES.md](docs/CAPABILITIES.md) for budgets
+and crash behavior. Historical transient results remain excluded from new turns.
+
 Open **Settings → Capabilities**. For weather, enter a city such as Thornton,
 Colorado, choose **Find location**, then explicitly confirm a returned place.
 Ask “What's the weather?” Weather uses Open-Meteo's external HTTPS service even

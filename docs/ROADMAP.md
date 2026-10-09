@@ -13,7 +13,8 @@ flowchart TD
   Review -->|"Explicit owner approval"| Intelligence["0.3 — explicit local memory"]
   Intelligence --> Retrieval["0.3.1 — lexical retrieval hotfix ✅"]
   Retrieval --> Capabilities["0.4 — bounded weather, system and approved reads ✅"]
-  Capabilities --> OwnerReview["STOP / REVIEW — owner capability feedback"]
+  Capabilities --> Continuation["0.4.1 — approved local tool continuation"]
+  Continuation --> OwnerReview["STOP / REVIEW — owner capability feedback"]
 ```
 
 ## 0.1: Foundation — complete
@@ -102,6 +103,15 @@ results are recorded in [VALIDATION.md](VALIDATION.md). The final tagged source
 must pass the same gate before publication. Stop here for owner feedback.
 
 ## Next bounded milestone — owner review
+
+### 0.4.1: Approved tool continuation — owner approved, validation pending
+
+Local Ollama resumes the original task after approved text reads, including
+separately approved chained reads. Durable origins, one-time claims, route/scope
+checks, conservative crash recovery and shared budgets protect correctness.
+Cloud file sharing remains excluded. Release requires exact-source green CI and
+installed real-Ollama semantic answers, repeated approvals, comparison and hostile
+file validation. Stop after release; 0.5 implementation is not authorized.
 
 Gather owner feedback on weather availability, system coverage, folder selection,
 content approvals and memory relevance, then improve error/recovery ergonomics

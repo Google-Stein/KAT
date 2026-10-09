@@ -7,6 +7,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from kat_core.capability_migration import capability_schema
+from kat_core.continuation_migration import continuation_schema
 from kat_core.memory_migration import memory_schema, stemmed_memory_index
 
 Migration = Callable[[sqlite3.Connection], None]
@@ -51,6 +52,7 @@ MIGRATIONS: dict[int, Migration] = {
     3: memory_schema,
     4: stemmed_memory_index,
     5: capability_schema,
+    6: continuation_schema,
 }
 
 

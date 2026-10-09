@@ -1,9 +1,12 @@
+import json
 import sqlite3
 from pathlib import Path
 
 import pytest
 
-from kat_core.migrations import foundation, migrate
+from kat_core.migrations import MIGRATIONS, foundation, migrate
+from kat_core.schemas import SettingsUpdate
+from kat_core.storage import Store
 
 
 def test_upgrade_preserves_wal_data_and_has_recoverable_backup(tmp_path: Path) -> None:
@@ -64,3 +67,52 @@ def test_future_database_and_missing_step_fail_closed(tmp_path: Path) -> None:
         migrate(db, path, {2: foundation})
     assert db.execute("PRAGMA user_version").fetchone()[0] == 0
     db.close()
+
+
+def test_v04_upgrade_preserves_legacy_approval_without_inventing_a_continuation(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "kat.sqlite3"
+    db = sqlite3.connect(path)
+    migrate(db, path, {version: step for version, step in MIGRATIONS.items() if version <= 5})
+    db.execute("PRAGMA journal_mode=WAL")
+    db.execute(
+        "INSERT INTO sessions(id,title,created_at,updated_at) "
+        "VALUES('owner','Original','then','now')"
+    )
+    db.execute("INSERT INTO settings(id,value) VALUES(1,?)", (SettingsUpdate().model_dump_json(),))
+    private = "Private retained file body."
+    db.execute(
+        "INSERT INTO messages(id,session_id,role,content,created_at) VALUES('tool','owner',"
+        "'tool',?,'then')",
+        (private,),
+    )
+    db.execute(
+        "INSERT INTO approvals(id,session_id,tool_name,arguments,risk,status,created_at,result) "
+        "VALUES('legacy','owner','read_text_file',?,'medium','completed','then',?)",
+        (
+            json.dumps({"root_id": "old-root", "relative_path": "briefing.txt"}),
+            json.dumps({"content": private}),
+        ),
+    )
+    db.commit()
+    store = Store(path)
+    try:
+        approval = store.approval("legacy")
+        assert approval is not None and approval.result == {"content": private}
+        assert approval.origin_user_message_id is None
+        assert approval.continuation is None and approval.continuation_policy == "none"
+        assert store.messages("owner")[0].content == private
+        with store.transaction() as current:
+            assert current.execute("PRAGMA user_version").fetchone()[0] == 6
+            assert current.execute("SELECT count(*) FROM continuations").fetchone()[0] == 0
+            assert current.execute("PRAGMA foreign_key_check").fetchall() == []
+        backup = list(tmp_path.glob("*.backup-v5-*"))
+        assert len(backup) == 1
+        with sqlite3.connect(backup[0]) as restored:
+            assert restored.execute("PRAGMA user_version").fetchone()[0] == 5
+            assert restored.execute("SELECT content FROM messages").fetchone()[0] == private
+            assert restored.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    finally:
+        store.close()
+        db.close()
