@@ -103,7 +103,7 @@ class AuditUnknownToolsHook(RunHooks[Any]):
     """The SDK rejects unknown names before callbacks; preserve an audit event too."""
 
     def __init__(self, registry: ToolRegistry, dispatch: ToolDispatcher) -> None:
-        self._known = {spec.name for spec in registry.specs()}
+        self._known = {spec.name for spec in registry.model_specs()}
         self._dispatch = dispatch
 
     async def on_llm_end(
@@ -127,7 +127,7 @@ class OpenAIAgentsRuntime:
     @staticmethod
     def _sdk_tools(registry: ToolRegistry, dispatch: ToolDispatcher) -> list[FunctionTool]:
         sdk_tools = []
-        for spec in registry.specs():
+        for spec in registry.model_specs():
 
             def make_handler(name: str) -> Callable[[ToolContext[Any], str], Awaitable[str]]:
                 async def invoke(_context: ToolContext[Any], raw: str) -> str:

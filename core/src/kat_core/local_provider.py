@@ -142,10 +142,13 @@ class OllamaRuntime:
                     "function": {
                         "name": spec.name,
                         "description": spec.description,
-                        "parameters": spec.arguments_model.model_json_schema(),
+                        "parameters": {
+                            **spec.arguments_model.model_json_schema(),
+                            "required": list(spec.arguments_model.model_fields),
+                        },
                     },
                 }
-                for spec in registry.specs()
+                for spec in registry.model_specs()
             ]
             for _ in range(6):
                 body: dict[str, Any] = {

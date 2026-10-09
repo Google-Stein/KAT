@@ -21,7 +21,7 @@ from kat_core.tools import ApplicationAllowlist, ApplicationDefinition, ToolRegi
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", default="qwen3:4b-instruct")
+    parser.add_argument("--model", default="qwen3:1.7b")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="kat-local-smoke-") as directory:
         config = CoreConfig(

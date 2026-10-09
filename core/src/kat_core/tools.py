@@ -317,6 +317,13 @@ class ToolRegistry:
     def specs(self) -> list[ToolSpec]:
         return list(self._specs.values())
 
+    def model_specs(self) -> list[ToolSpec]:
+        """Advertise file capabilities only after explicit owner registration."""
+        unavailable = (
+            {"list_directory", "read_text_file", "search_files"} if not self.read_roots() else set()
+        )
+        return [spec for spec in self.specs() if spec.name not in unavailable]
+
     def get(self, name: str) -> ToolSpec:
         try:
             return self._specs[name]

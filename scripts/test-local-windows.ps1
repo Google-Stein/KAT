@@ -1,4 +1,4 @@
-param([string]$Executable = '', [string]$Model = 'qwen3:4b-instruct')
+param([string]$Executable = '', [string]$Model = 'qwen3:1.7b')
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repo = Split-Path -Parent $PSScriptRoot

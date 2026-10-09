@@ -317,6 +317,21 @@ def test_owner_root_removal_cors_and_authentication(client):
     )
 
 
+def test_model_file_catalog_requires_owner_registered_root(client, tmp_path):
+    registry = client.app.state.service.registry
+    files = {"list_directory", "read_text_file", "search_files"}
+    assert files <= {s.name for s in registry.specs()}
+    assert not files & {s.name for s in registry.model_specs()}
+    root = tmp_path / "configured"
+    root.mkdir()
+    added = client.post(
+        "/capabilities/roots", json={"label": "Configured", "path": str(root)}
+    ).json()
+    assert files <= {s.name for s in registry.model_specs()}
+    client.delete("/capabilities/roots/" + added["id"])
+    assert not files & {s.name for s in registry.model_specs()}
+
+
 def test_unregistered_roots_and_mutating_tools_never_available(client, runtime):
     session = client.post("/sessions", json={}).json()["id"]
     runtime.tool_requests = [
