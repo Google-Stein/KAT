@@ -18,8 +18,8 @@ Ask “How much RAM am I using?” or “How much disk space do I have?” for f
 read-only system metrics. Unsupported GPU information degrades gracefully.
 
 To share a local folder, enter a friendly label, use **Choose folder**, then
-explicitly **Add folder**. KAT can list names and search filenames only inside
-registered roots. Reading a supported text file requires **Allow once** for each
+explicitly **Add read-only folder**. KAT can list names and search filenames only
+inside registered roots. Reading a supported text file requires **Allow once** for each
 request; the card shows the root label and relative filename. Content returns in
 the local transcript without automatically making another model request. Folder
 removal revokes future reads, including pending approvals. No file modification,
@@ -84,8 +84,8 @@ keep its server on loopback, disable its cloud features (`OLLAMA_NO_CLOUD=1` for
 ```powershell
 # Recommended starting point for RTX 4090 / 24 GB VRAM: ~5 GB weights.
 ollama pull qwen3:8b
-# Smaller CPU/CI capability model, lower quality: ~2.6 GB weights.
-ollama pull qwen3:4b-instruct
+# Small CPU/CI smoke model, lower quality: ~1.9 GB weights.
+ollama pull qwen2.5:3b
 ```
 
 Choose **Local · Ollama** in KAT Settings, select an installed model, refresh status,
@@ -95,11 +95,10 @@ starts/stops Ollama itself. GPU acceleration is Ollama's responsibility; check
 `ollama ps` and its server diagnostics. RTX 4090 performance is not certified by
 CPU CI. Normal KAT installation contains neither backend nor model weights.
 
-For the expanded 0.4 tools, use Qwen3:4b or the recommended 8b starting point.
-Qwen3:1.7b is too unreliable at system-tool argument generation for this suite;
-KAT rejects its invalid calls rather than relaxing the schema. “Advertises tools”
-reports backend metadata, not a guarantee of model quality. Saved model selection
-never changes automatically.
+Model tool quality varies. “Advertises tools” reports backend metadata, not a
+guarantee of correct selection or arguments. KAT rejects invalid calls, keeps
+content approvals mandatory and never changes your saved model automatically.
+Qwen3:8b remains the starting recommendation for the owner's RTX 4090.
 
 Try “Hello, KAT.”, “What time is it?”, then “Open Notepad.” Approve the final action
 through its card. Local failures stay local. To use cloud inference, explicitly
@@ -108,7 +107,7 @@ select OpenAI; its context and tool descriptions leave the device for OpenAI.
 The explicit real-backend Core smoke command is:
 
 ```powershell
-.\core\.venv\Scripts\python.exe .\scripts\smoke-local.py --model qwen3:4b-instruct
+.\core\.venv\Scripts\python.exe .\scripts\smoke-local.py --model qwen2.5:3b
 ```
 
 It requires an already running backend/model and on Windows tests repeated time,
@@ -267,6 +266,6 @@ Windows defaults register Notepad and Calculator when their system executables e
 
 ## Supported Python runtime
 
-KAT Core's language minimum is Python 3.12. KAT 0.1.x/0.2/0.3 development, tests and release packaging use **CPython 3.12.x exclusively**; later minor versions are not certified. Root and Core `.python-version` files select 3.12 for uv and GitHub Actions. Patch updates within 3.12 receive the same tests. CI passes the exact `setup-python` executable to Windows setup; local setup uses a matching PATH interpreter or `py -3.12`, never `py -3`. You can pass `-PythonExecutable C:\path\to\Python312\python.exe` to setup/build. An existing incompatible Core venv is rejected; remove only `core/.venv` and rerun setup to replace it. PyInstaller always runs through that validated Core venv, including with `-SkipSetup`.
+KAT Core's language minimum is Python 3.12. KAT 0.1.x/0.2/0.3/0.4 development, tests and release packaging use **CPython 3.12.x exclusively**; later minor versions are not certified. Root and Core `.python-version` files select 3.12 for uv and GitHub Actions. Patch updates within 3.12 receive the same tests. CI passes the exact `setup-python` executable to Windows setup; local setup uses a matching PATH interpreter or `py -3.12`, never `py -3`. You can pass `-PythonExecutable C:\path\to\Python312\python.exe` to setup/build. An existing incompatible Core venv is rejected; remove only `core/.venv` and rerun setup to replace it. PyInstaller always runs through that validated Core venv, including with `-SkipSetup`.
 
 A fully green Core, desktop and Windows workflow is required for every Windows release. The installed gate additionally exercises native credential entry, real local-model chat/tools, durable approval and data-preserving uninstall. `smoke-windows.ps1` verifies a real main window, native bearer-authenticated health evidence, unauthenticated rejection, exact parent/child/listener ownership, normal close cleanup and forced termination cleanup. It preserves diagnostics under `.local/windows-smoke`; CI uploads these even on failure. Native startup stages are recorded in `%LOCALAPPDATA%\com.kat.assistant\logs\desktop.log`, alongside `desktop-core.log` and `core.log`. Tokens are never included in these reports.

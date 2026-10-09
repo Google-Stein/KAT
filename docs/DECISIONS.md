@@ -7,6 +7,10 @@ terms. The owner explicitly resolves/confirms a city; the model receives a
 parameterless current-weather capability. Code owns HTTPS hosts, coordinates,
 fields, deadlines, sizes and redirect policy. Local inference still needs this
 external non-AI service for weather. The adapter protocol permits replacement.
+Intermittent Windows transport timeouts occurred despite successful 0.7–1.3-second
+fixed-endpoint timing probes. Permit one transport retry within the same original
+eight-second budget, using 3.5-second attempts. Do not retry redirects, HTTP errors
+or malformed payloads, increase total deadlines, or substitute historical data.
 
 ## ADR 025: Fresh system metrics without processor commands
 
@@ -14,6 +18,13 @@ Use maintained psutil plus fixed Win32 display APIs. Avoid `platform.processor`,
 which can invoke a subprocess on some systems. Architecture is available; CPU
 model/GPU VRAM may remain unavailable. Fresh utilization and bounded local-disk
 results are preferable to command execution or broader process inspection.
+The system tool accepts a strict `metric` enum (RAM, CPU, disks, GPU, OS or all),
+retaining fresh collection metadata. Actual small-model Windows testing showed
+reliable RAM selection with this narrow schema rather than a parameterless tool.
+All parameterless descriptions explicitly require `{}`. Rejected argument shapes
+return only declared-field guidance; the agent may propose one corrected call.
+Every proposal still passes strict validation and permission checks. No invalid
+fields are silently removed and no unknown tool acquires authority.
 
 ## ADR 026: Owner roots with pinned path traversal
 
@@ -22,6 +33,15 @@ can add roots. Native selection still requires explicit Add. Reject network,
 device and reparse roots, and validate every operation. POSIX descriptor traversal
 and Windows pinned directory chains plus final-handle verification close the
 check-then-open escape. Fail closed on aliases rather than increasing authority.
+Windows directory handles request list-directory/read-attributes access and allow
+read-sharing only: attributes-only handles do not enforce the sharing lock, and
+write-sharing permits in-place reparse modification before path enumeration.
+The actual-kernel regression checks denied writes/rename while pinned and writable
+access before/after the pin, avoiding a fixture-permission false positive.
+Listings expose exact root-relative paths, omitting unsupported/overlength names.
+Missing-file recovery can fetch a fresh listing; never rewrite a model's path or
+broaden a root. Metadata preflight checks existence/type/size without body access
+before approval, and execution revalidates the current target after approval.
 
 ## ADR 027: Individual content approval and metadata-only audit
 
@@ -32,6 +52,15 @@ transcript and approval retain the body. Historical outcomes remain excluded fro
 future inference and never become memory automatically. Worker deadlines keep
 the API responsive; blocked OS calls may finish later and cannot be forcibly
 interrupted safely. Read-only fixed local roots limit that residual exposure.
+
+## ADR 028: Explicit CPU acceptance model for expanded tools
+
+Tool-support metadata alone is insufficient. Qwen3:1.7b passed earlier foundation
+tools but misinterpreted friendly file-root labels in the expanded suite. Actual
+Qwen2.5:3b CPU testing passed the original tools and two separately approved exact
+file reads through the same strict runtime/dispatcher. Use it explicitly in CI;
+preserve owner-selected models and all bounds. RTX 4090/Qwen3:8b remain separate
+owner-hardware validation. No model change permits bypassing schema or approval.
 
 ## ADR 001: Small modular vertical slice
 
@@ -67,7 +96,7 @@ interrupted safely. Read-only fixed local roots limit that residual exposure.
 
 ## ADR 009: Certified Python runtime and Windows release gate
 
-**Accepted.** KAT 0.1.x/0.2/0.3 use CPython 3.12.x for local setup, dependency installation, tests and PyInstaller packaging. Core retains a 3.12 language minimum, but newer minor interpreters are not certified until an explicit compatibility decision and Windows validation. CI supplies its selected executable; setup rejects incompatible existing environments. Windows launch, authentication, process ownership and both shutdown paths must pass on the packaged executable before the foundation is called Windows validated. Persistent startup logs expose phases and PIDs without bearer credentials.
+**Accepted.** KAT 0.1.x/0.2/0.3/0.4 use CPython 3.12.x for local setup, dependency installation, tests and PyInstaller packaging. Core retains a 3.12 language minimum, but newer minor interpreters are not certified until an explicit compatibility decision and Windows validation. CI supplies its selected executable; setup rejects incompatible existing environments. Windows launch, authentication, process ownership and both shutdown paths must pass on the packaged executable before the foundation is called Windows validated. Persistent startup logs expose phases and PIDs without bearer credentials.
 
 ## ADR 010: Framework build mode and complete Windows process ownership
 

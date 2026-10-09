@@ -12,7 +12,7 @@ the full exact-source workflow and installed real-Ollama sequence pass.
 
 | Command/check | Actual result |
 | --- | --- |
-| `uv run --directory core pytest tests ../tests/integration -q` | **254 passed**; includes 34 capability tests, weather failures/freshness, safe metrics, owner registration, path attacks, content approval/audit privacy and provider-independent dispatch |
+| `uv run --directory core pytest tests ../tests/integration -q` | **264 passed, one Windows-only sharing test skipped**; includes 44 executed capability tests, weather failures/freshness/compression/retry deadline bounds, strict fresh system selection, owner registration/catalog visibility, removal CORS/authentication, path attacks, metadata-only preflight/deadline failure, addressable listing paths, content approval/audit privacy and provider-independent dispatch |
 | Core `ruff check`, `ruff format --check`, `mypy` | Passed; **31** typed source modules; installed-UI helper and SDK integration test also linted/formatted |
 | `npm test` | **41 passed**, including explicit weather confirmation/native selection/Add and escaped text preview |
 | `npm run lint`, `format:check`, `typecheck`, `build` | All passed; production frontend built |
@@ -39,6 +39,131 @@ external weather calls, fresh RAM metrics, native folder selection plus separate
 Add, bounded listing, approval before exact disposable text is returned, audit
 body exclusion, trusted traversal rejection and configuration after relaunch.
 No owner files, fake weather or debug ports substitute for this gate.
+
+The first full run [37883512682](https://github.com/Google-Stein/KAT/actions/runs/37883512682)
+passed Core/Desktop and Windows packaging/window/lifecycle, then failed real local
+Core inference: Qwen selected `get_local_time` with an extra string argument.
+Focused diagnosis [37884336343](https://github.com/Google-Stein/KAT/actions/runs/37884336343)
+confirmed the invalid argument shape without logging values. Strict validation
+correctly prevented execution. Explicit parameterless-tool instructions and safe
+declared-field guidance on rejection fixed the model call; no arguments are
+silently discarded or coerced. The obsolete intermediate full run was cancelled.
+
+Focused real Windows Core/Ollama run
+[37884572448](https://github.com/Google-Stein/KAT/actions/runs/37884572448), source
+`51d6251556646188a9cbc67f02475b2d58951f13`, passed actual conversation, two fresh
+time results, two Notepad and two Calculator requests with distinct approvals,
+allowlisted native executions and audit. OpenAI client construction was prohibited.
+This focused gate is **not** a substitute for full installed acceptance.
+
+Full run [37884571916](https://github.com/Google-Stein/KAT/actions/runs/37884571916)
+passed the old installed credentials/tools/memory/name sequence and two real
+external Open-Meteo lookups, then failed RAM tool selection: zero system results.
+Focused [37885182044](https://github.com/Google-Stein/KAT/actions/runs/37885182044)
+proved another extra string argument; Qwen repeated rejection text rather than
+correcting its call. Explicit no-argument descriptions and one-correction guidance
+still failed with four invented object arguments in
+[37885466458](https://github.com/Google-Stein/KAT/actions/runs/37885466458).
+The metrics API was not reached. Larger-model experiments did not resolve the
+whole gate: [37885767794](https://github.com/Google-Stein/KAT/actions/runs/37885767794)
+hit a bounded model timeout with hybrid Qwen3:4b (about eight tokens/second);
+[37886629856](https://github.com/Google-Stein/KAT/actions/runs/37886629856) failed
+Notepad selection with Qwen3:4b-instruct. No timeout or security boundary was relaxed.
+
+The final interface exposes a strict bounded `metric` enum, returns only the
+chosen category and fresh collection metadata, and advertises file tools only
+after owner root registration in both adapters. Actual Qwen3:1.7b CPU run
+[37887532151](https://github.com/Google-Stein/KAT/actions/runs/37887532151), source
+`c475f94f0292db8533cbe4243e1983c006a7bb75`, passed original time/applications plus
+fresh RAM collection at 2026-10-09 05:15:00 UTC (2026-10-08 23:15:00 America/Denver).
+The CI recipe retains this small model. Saved owner choices never change.
+
+Full [37887532043](https://github.com/Google-Stein/KAT/actions/runs/37887532043)
+passed original installed tools/memory/name checks, then received a failed weather
+provider result. Safe category/status diagnostics were added; the external
+lookup and full installed acceptance remain gates, not assumed successes.
+
+Fixed-provider timing diagnosis
+[37889366804](https://github.com/Google-Stein/KAT/actions/runs/37889366804)
+returned two actual Windows HTTPS 200 responses in 1,281 and 734 ms, with DNS
+resolution in 16 ms. Intermittent transport timeouts therefore warrant one
+bounded transport retry within the unchanged eight-second request budget,
+not an increased startup timeout or cached weather. Full run
+[37889718681](https://github.com/Google-Stein/KAT/actions/runs/37889718681)
+passed existing installed memory/tools, two fresh weather lookups and RAM.
+The second weather lookup recovered from a transport timeout through the bounded
+retry. The test driver then failed immediately locating the native picker Edit
+control; no completed file acceptance is claimed for that run. The harness now
+selects a visible dialog, reports only control classes/IDs/visibility, and waits
+for its field. Windows Core/path/native tests run before installed UI so a UI
+failure cannot conceal their outcomes.
+
+Run [37891098005](https://github.com/Google-Stein/KAT/actions/runs/37891098005)
+passed actual Windows **260 Core/integration tests (one POSIX execute-bit skip)**,
+**21 native tests** plus **three explicit Core integrations**, all 18 smoke
+diagnostics and packaged normal/forced lifecycle checks. It was cancelled during
+installed acceptance after a separate focused run identified a superseding test
+driver correction. Focused picker diagnostics confirmed a real visible Edit and
+OK control: a Win32 wrapper must use its child wrapper API, and edited shell paths
+must be committed with real keyboard input. These partial results do not establish
+a green release gate.
+
+Focused native folder check
+[37891913495](https://github.com/Google-Stein/KAT/actions/runs/37891913495)
+passed: the actual native picker selects the disposable local folder, selection
+alone creates no root, and the explicit Add control registers its verified path.
+This uses the production UI and Core with no model, debug port or test IPC; it
+isolates picker automation and does not replace installed real-Ollama acceptance.
+
+Pre-release path review found that read-attributes-only Windows directory handles
+do not enforce the intended sharing exclusion, and allowing write-sharing permits
+in-place reparse changes before path-based enumeration. Directory pins now request
+list-directory/read-attributes access and allow read-sharing only. A Windows-only
+kernel regression verifies writes work outside the pin, fail with sharing error
+32 while pinned, and rename is also denied. It does not replace existing junction,
+alias, traversal, sibling-prefix and actual installed-root checks.
+
+Run [37892660358](https://github.com/Google-Stein/KAT/actions/runs/37892660358)
+passed the strengthened real Windows sharing regression within **261 tests and
+one POSIX skip**, native tests/integrations, packaging and both lifecycle paths.
+Installed acceptance stopped at the synthetic revised-memory answer assertion;
+the correct current revision was selected. A bounded fixture-only answer diagnostic
+was added. Earlier run
+[37891913115](https://github.com/Google-Stein/KAT/actions/runs/37891913115)
+passed actual folder registration/listing, then stopped before content access
+because the proposed approved relative filename did not match the request.
+The shared schema now explains root-relative filenames explicitly, and live Core
+acceptance also requires two named-file reads with distinct approvals and exact
+text/metadata-only audit. No incorrect pending file is approved by the test.
+
+Focused Core/file run
+[37898618452](https://github.com/Google-Stein/KAT/actions/runs/37898618452)
+passed existing live model/time/apps/RAM, then correctly rejected root registration
+from the runner's 8.3-aliased default TEMP path. Disposable live file fixtures now
+use the canonical `RUNNER_TEMP` directory; production alias checks stay strict.
+
+Focused picker run
+[37898709617](https://github.com/Google-Stein/KAT/actions/runs/37898709617)
+also passed against the rebuilt `b2b1ab8` Windows executable/Core: stronger actual
+directory sharing permits ordinary native selection and explicit root registration.
+
+Qwen3:1.7b repeatedly interpreted the friendly label as a path prefix; no incorrect
+file was read. Metadata-only preflight now rejects missing targets before approval
+and provides bounded recovery guidance. Listings provide exact usable relative
+paths, excluding unsupported/overlength names instead of fabricating truncated
+addresses. A preflight timeout fails closed with a sanitized audit category.
+
+Actual Windows/local Core comparison
+[37900903196](https://github.com/Google-Stein/KAT/actions/runs/37900903196), source
+`909c100b7a95909a3b4b91e1f5fb0c4a02e7c3fb`, passed with **Qwen2.5:3b CPU**:
+conversation, two new time calls, two Notepad and two Calculator approvals/native
+executions, RAM, live directory listing and two exact named-file requests with
+distinct approvals/returned text and metadata-only audit. The direct fixture
+metadata probe also passed; no body was read before approval. Qwen3:1.7b failed
+listing/relative-path selection in the equivalent run. The successful 3b model is
+the new explicit CI recipe; no saved owner model or runtime deadline changes.
+A subsequently dispatched 7b comparison was cancelled after the required smaller
+model gate passed. These focused results still do not certify full installation.
 
 ### Limits
 

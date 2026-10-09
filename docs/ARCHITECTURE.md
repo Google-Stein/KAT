@@ -108,6 +108,9 @@ adapter, `system_status`, and `file_access`. Metadata includes risk, explicit
 approval, transient semantics and external network use. Both providers retain
 the shared dispatcher. Root IDs/labels enter tool instructions; absolute owner
 paths do not. Weather uses code-owned Open-Meteo endpoints with no provider key.
+Both adapters advertise file definitions only after root registration. The
+strict system metric enum selects a bounded category; results include fresh
+collection metadata. Parameterless schemas explicitly declare no required fields.
 System metrics use psutil and fixed Win32 APIs. File operations revalidate roots,
 paths, type and bounds, with anchored POSIX descriptors or pinned Windows handles.
 

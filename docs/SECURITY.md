@@ -3,7 +3,7 @@
 ## Bounded weather, system and file capabilities (0.4)
 
 Weather contacts only fixed Open-Meteo HTTPS geocoding/forecast endpoints, with
-redirects disabled, no proxy-environment inheritance, no retries, bounded
+redirects disabled, no proxy-environment inheritance, one bounded transport retry, bounded
 responses and deadlines. The owner explicitly resolves/confirms a city; no OS
 geolocation is read. The configured coordinates and place query go to that
 external non-AI provider, even with local inference.
@@ -18,11 +18,13 @@ roots or grant content permission. Arguments expose only root IDs and relative
 paths. Local fixed-drive roots are allowed; drive roots, UNC/network/device
 namespaces, traversal, ADS, reserved device names and path aliases are rejected.
 Every path component is checked. POSIX uses anchored no-follow descriptors.
-Windows pins directory handles without delete-sharing, rejects reparse points and
+Windows pins directory handles without write/delete-sharing, rejects reparse points and
 compares handle-resolved paths to each exact component before reading the same
 opened handle. String-prefix checks are not used as containment authority.
 
-Listing and filename search never read bodies. Content reads always require a
+Listing and filename search never read bodies. Preflight checks only existence/type/size metadata, never file
+contents, within pinned parents and a caller deadline. Execution still revalidates
+the current root/target after approval. Content reads always require a
 fresh specific approval, including when risk settings allow other medium-risk
 tools. Removal revokes pending reads. Only bounded UTF-8 files with allowlisted
 text extensions are read; binaries, oversized files and special files are rejected.

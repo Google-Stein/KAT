@@ -1,7 +1,8 @@
 # Roadmap
 
 The owner-approved sequence is **0.1 → 0.1.1 → 0.2 → STOP / REVIEW → 0.3+**.
-The owner approved bounded explicit memory for 0.3; automatic extraction and autonomy remain deferred. This document separates
+The owner approved bounded explicit memory for 0.3 and narrow weather/system/file
+capabilities for 0.4; automatic extraction and autonomy remain deferred. This document separates
 completed capabilities from proposals; later work requires new product decisions.
 
 ```mermaid
@@ -10,6 +11,8 @@ flowchart TD
   Installed --> Local["0.2 — real local conversation and approved tools ✅"]
   Local --> Review["STOP / REVIEW — bounded explicit memory approved"]
   Review -->|"Explicit owner approval"| Intelligence["0.3 — explicit local memory"]
+  Intelligence --> Retrieval["0.3.1 — lexical retrieval hotfix ✅"]
+  Retrieval --> Capabilities["0.4 — bounded weather, system and approved reads"]
 ```
 
 ## 0.1: Foundation — complete
@@ -98,8 +101,9 @@ results are recorded in [VALIDATION.md](VALIDATION.md).
 
 ## Next bounded milestone — owner review
 
-Gather real-world memory relevance/abstention and scope feedback, then improve
-explicit memory UX and recovery ergonomics within the existing privacy boundary.
+Gather owner feedback on weather availability, system coverage, folder selection,
+content approvals and memory relevance, then improve error/recovery ergonomics
+within the existing privacy boundary.
 No automatic extraction, suggestions, embeddings, conflict resolution, planning
 or autonomy is authorized by this release. Those require a new design decision.
 
