@@ -343,6 +343,26 @@ def main() -> None:
                 "after credential return.",
                 flush=True,
             )
+            provider = window.child_window(
+                title="Provider", control_type="ComboBox", visible_only=False
+            )
+            for expected, keys in (
+                ("ollama", "%{DOWN}{HOME}{DOWN}{ENTER}{TAB}"),
+                ("openai", "%{DOWN}{HOME}{ENTER}{TAB}"),
+            ):
+                stage = "settings-provider-roundtrip-" + expected
+                reveal(provider)
+                provider.type_keys(keys)
+                button("Save settings").invoke()
+                wait_for(
+                    lambda: (
+                        json.loads(rows("SELECT value FROM settings WHERE id=1")[0]["value"])[
+                            "provider"
+                        ]
+                        == expected
+                    )
+                )
+            print("PASS: real Settings select popup persists both provider choices.", flush=True)
             close()
             return
 
