@@ -84,8 +84,8 @@ keep its server on loopback, disable its cloud features (`OLLAMA_NO_CLOUD=1` for
 ```powershell
 # Recommended starting point for RTX 4090 / 24 GB VRAM: ~5 GB weights.
 ollama pull qwen3:8b
-# Small CPU/CI smoke model, lower quality: ~1.9 GB weights.
-ollama pull qwen2.5:3b
+# Explicit CPU/CI acceptance model: ~4.7 GB weights; slower than GPU inference.
+ollama pull qwen2.5:7b
 ```
 
 Choose **Local · Ollama** in KAT Settings, select an installed model, refresh status,
@@ -107,7 +107,7 @@ select OpenAI; its context and tool descriptions leave the device for OpenAI.
 The explicit real-backend Core smoke command is:
 
 ```powershell
-.\core\.venv\Scripts\python.exe .\scripts\smoke-local.py --model qwen2.5:3b
+.\core\.venv\Scripts\python.exe .\scripts\smoke-local.py --model qwen2.5:7b
 ```
 
 It requires an already running backend/model and on Windows tests repeated time,

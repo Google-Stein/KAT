@@ -6,7 +6,7 @@ executes it. No shell, arbitrary URL, browser automation or file modification is
 exposed. Existing conversation, memory and provider boundaries stay intact.
 
 Tool-capable model metadata does not guarantee correct arguments. Windows
-acceptance uses Qwen2.5:3b CPU; Qwen3:8b remains the recommended starting point for
+acceptance uses Qwen2.5:7b CPU; Qwen3:8b remains the recommended starting point for
 the owner's RTX 4090. Small models can invent arguments; KAT rejects these calls,
 never strips unknown fields, fabricates metrics or silently selects another model.
 Existing saved model choices are preserved. See VALIDATION.md for actual gates.

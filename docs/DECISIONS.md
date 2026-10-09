@@ -57,10 +57,15 @@ interrupted safely. Read-only fixed local roots limit that residual exposure.
 
 Tool-support metadata alone is insufficient. Qwen3:1.7b passed earlier foundation
 tools but misinterpreted friendly file-root labels in the expanded suite. Actual
-Qwen2.5:3b CPU testing passed the original tools and two separately approved exact
-file reads through the same strict runtime/dispatcher. Use it explicitly in CI;
+Qwen2.5:3b CPU testing passed tools and file reads but confused the assistant's
+identity with the owner's remembered name. Qwen2.5:7b passed both name variants,
+the original tools and two separately approved exact file reads through the same
+strict runtime/dispatcher. Use it explicitly in CI;
 preserve owner-selected models and all bounds. RTX 4090/Qwen3:8b remain separate
 owner-hardware validation. No model change permits bypassing schema or approval.
+Uncached prompt evaluation on Windows CPU exceeded 60 seconds with the expanded
+catalog. Local inference allows 90 seconds per request within the unchanged
+120-second turn deadline; probe, startup and tool deadlines remain unchanged.
 
 ## ADR 001: Small modular vertical slice
 

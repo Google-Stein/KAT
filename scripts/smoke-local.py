@@ -21,7 +21,7 @@ from kat_core.tools import ApplicationAllowlist, ApplicationDefinition, ToolRegi
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", default="qwen2.5:3b")
+    parser.add_argument("--model", default="qwen2.5:7b")
     args = parser.parse_args()
     # Hosted Windows TEMP can use an 8.3 alias (RUNNER~1). Registered roots must
     # match their final canonical handle path; use the runner's ordinary test root.

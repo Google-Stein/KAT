@@ -5,7 +5,7 @@ on:
       model:
         description: 'Actual local test model; does not change owner configuration'
         required: false
-        default: 'qwen2.5:3b'
+        default: 'qwen2.5:7b'
         type: string
       executable_run:
         description: 'Optional KAT checks run artifact; empty tests released 0.1.1 credentials only'

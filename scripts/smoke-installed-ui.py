@@ -41,7 +41,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--executable", type=Path, required=True)
-    parser.add_argument("--model", default="qwen2.5:3b")
+    parser.add_argument("--model", default="qwen2.5:7b")
     parser.add_argument("--credentials-only", action="store_true")
     parser.add_argument("--folder-only", action="store_true")
     args = parser.parse_args()

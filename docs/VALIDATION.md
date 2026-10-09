@@ -46,6 +46,16 @@ Retrieval, the untrusted-data envelope, permissions and OpenAI exclusion are unc
 Both name variants are also required by the direct real-Ollama smoke test;
 the full installed gate remains mandatory.
 
+Clarifying identity alone did not make the 3B model reliable. Qwen2.5:7b answered
+both names but exceeded the earlier 60-second inference request deadline at the
+expanded file catalog. Actual backend logs measured about 20 prompt tokens/second.
+The local request limit is now 90 seconds within the unchanged 120-second turn
+limit. Focused [37906650795](https://github.com/Google-Stein/KAT/actions/runs/37906650795),
+source `a4b653c0f8dde44367658d2eeab1eb5af57a6ea8`, then passed the full direct
+Core/Ollama sequence: name variants, original tools, RAM, listing and two exact
+file reads with distinct approvals and metadata-only audit. CI explicitly uses
+Qwen2.5:7b; saved owner choices are unchanged. This is not installed release validation.
+
 The extended production-UI helper requires real local Ollama, existing name-memory
 and time/Notepad/Calculator regressions, explicit city confirmation, two fresh
 external weather calls, fresh RAM metrics, native folder selection plus separate
