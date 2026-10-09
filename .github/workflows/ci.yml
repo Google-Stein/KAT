@@ -93,6 +93,14 @@ jobs:
             ~/.cargo/git
             desktop/src-tauri/target/release
           key: ${{ steps.rust-cache.outputs.cache-primary-key }}
+      - name: Upload current executable for parallel diagnostics
+        if: steps.windows-build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kat-windows-executable
+          path: |
+            desktop/src-tauri/target/release/kat-desktop.exe
+            desktop/src-tauri/target/release/binaries/
       - name: Windows Core and native integration tests
         shell: pwsh
         run: |
@@ -124,11 +132,3 @@ jobs:
         with:
           name: kat-windows-installer
           path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
-      - name: Upload executable
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kat-windows-executable
-          path: |
-            desktop/src-tauri/target/release/kat-desktop.exe
-            desktop/src-tauri/target/release/binaries/

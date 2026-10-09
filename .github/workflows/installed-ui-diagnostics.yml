@@ -26,6 +26,11 @@ on:
         required: false
         default: false
         type: boolean
+      ui_only:
+        description: 'Production UI diagnosis only; requires executable_run, not a full release gate'
+        required: false
+        default: false
+        type: boolean
       folder_only:
         description: 'Only native folder selection and explicit registration; requires executable_run'
         required: false
@@ -55,6 +60,7 @@ jobs:
           EXECUTABLE_RUN: ${{ inputs.executable_run }}
           CORE_ONLY: ${{ inputs.core_only }}
           FILES_ONLY: ${{ inputs.files_only }}
+          UI_ONLY: ${{ inputs.ui_only }}
           WEATHER_ONLY: ${{ inputs.weather_only }}
           FOLDER_ONLY: ${{ inputs.folder_only }}
           PROVIDER_VISIBILITY_ONLY: ${{ inputs.provider_visibility_only }}
@@ -78,7 +84,7 @@ jobs:
               & core/.venv/Scripts/python.exe scripts/smoke-installed-ui.py --executable "$((Get-Location).Path)/.local/diagnostic-app/kat-desktop.exe" --provider-visibility-only
               if ($LASTEXITCODE -ne 0) { throw 'Settings control visibility diagnostic failed.' }
             } else {
-              ./scripts/test-local-windows.ps1 -Executable "$((Get-Location).Path)/.local/diagnostic-app/kat-desktop.exe" -Model $env:MODEL
+              ./scripts/test-local-windows.ps1 -Executable "$((Get-Location).Path)/.local/diagnostic-app/kat-desktop.exe" -Model $env:MODEL -UiOnly:($env:UI_ONLY -eq 'true')
             }
           } else {
             gh release download v0.1.1 --pattern '*-setup.exe' --dir .local/diagnostic-installer

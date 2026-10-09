@@ -1,6 +1,7 @@
-param([string]$Executable = '', [string]$Model = 'qwen2.5:7b', [switch]$FilesOnly)
+param([string]$Executable = '', [string]$Model = 'qwen2.5:7b', [switch]$FilesOnly, [switch]$UiOnly)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+if ($UiOnly -and (-not $Executable -or $FilesOnly)) { throw 'UI-only diagnosis requires an executable and cannot use FilesOnly.' }
 $repo = Split-Path -Parent $PSScriptRoot
 $root = Join-Path $repo '.local/ollama-test'
 $python = Join-Path $repo 'core/.venv/Scripts/python.exe'
@@ -31,10 +32,12 @@ try {
   $null = Invoke-RestMethod 'http://127.0.0.1:11434/api/version'
   & $ollama pull $Model
   if ($LASTEXITCODE -ne 0) { throw 'Explicit Ollama test-model pull failed.' }
-  $smokeArgs = @('--model', $Model)
-  if ($FilesOnly) { $smokeArgs += '--files-only' }
-  & $python (Join-Path $PSScriptRoot 'smoke-local.py') @smokeArgs
-  if ($LASTEXITCODE -ne 0) { throw 'Actual local Core inference/tools smoke failed.' }
+  if (-not $UiOnly) {
+    $smokeArgs = @('--model', $Model)
+    if ($FilesOnly) { $smokeArgs += '--files-only' }
+    & $python (Join-Path $PSScriptRoot 'smoke-local.py') @smokeArgs
+    if ($LASTEXITCODE -ne 0) { throw 'Actual local Core inference/tools smoke failed.' }
+  }
   if ($Executable) {
     & $python (Join-Path $PSScriptRoot 'smoke-installed-ui.py') --executable $Executable --model $Model
     if ($LASTEXITCODE -ne 0) { throw 'Actual installed desktop/local inference smoke failed.' }

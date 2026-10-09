@@ -77,6 +77,14 @@ card without reading the body. Asking for approval only in prose is insufficient
 Trusted permission/execution logic is unchanged, and all natural-language
 acceptance questions remain unchanged for this correction.
 
+Focused real-Ollama file diagnosis [37975563039](https://github.com/Google-Stein/KAT/actions/runs/37975563039)
+passed on `7537a8c6e9a11d99b78e057e563289e49ee40035`: semantic answer,
+comparison, malicious-file result delivery and traversal rejection all executed.
+Diagnostic modes are explicitly partial; the full Windows release job continues
+running both Core and production UI suites with no partial flags. Its built
+executable is now uploaded before runtime tests solely to allow parallel diagnosis;
+the installer remains uploadable/publishable only after all release gates pass.
+
 ## KAT 0.4 — bounded local capabilities
 
 Baseline is released v0.3.1, source
