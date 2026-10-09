@@ -170,6 +170,23 @@ def test_weather_transient_retry_is_bounded_and_returns_fresh_success(monkeypatc
     assert result["temperature_c"] == 17.1 and len(requests) == 2
 
 
+def test_weather_retry_does_not_reset_the_total_deadline(monkeypatch):
+    from types import SimpleNamespace
+
+    clock = [0.0]
+    requests = []
+    monkeypatch.setattr("kat_core.weather.time", SimpleNamespace(monotonic=lambda: clock[0]))
+
+    def backend(request):
+        requests.append(request)
+        clock[0] = 7.5
+        raise httpx.ReadTimeout("deadline consumed", request=request)
+
+    with pytest.raises(CapabilityFailure) as error:
+        adapter(monkeypatch, backend).current(LOCATION)
+    assert error.value.code == "weather_timeout" and len(requests) == 1
+
+
 def test_system_metric_selector_is_strict_fresh_and_returns_only_requested_values(
     client, runtime, monkeypatch
 ):

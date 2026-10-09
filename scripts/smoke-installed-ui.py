@@ -759,12 +759,32 @@ def main() -> None:
                 (
                     w
                     for w in Application(backend="win32").connect(process=process.pid).windows()
-                    if w.class_name() == "#32770"
+                    if w.class_name() == "#32770" and w.is_visible()
                 ),
                 None,
             )
         )
-        edit = next(c for c in picker.descendants(class_name="Edit") if c.is_visible())
+        print(
+            json.dumps(
+                {
+                    "test": "installed-native-folder-controls",
+                    "controls": [
+                        {
+                            "class": c.class_name(),
+                            "id": c.control_id(),
+                            "visible": c.is_visible(),
+                        }
+                        for c in picker.descendants()
+                    ],
+                }
+            ),
+            flush=True,
+        )
+        edit = wait_for(
+            lambda: next(
+                (c for c in picker.descendants(class_name="Edit") if c.is_visible()), None
+            )
+        )
         edit.set_edit_text(str(fixture_root))
         picker.child_window(title="OK", class_name="Button").click()
         wait_for(
