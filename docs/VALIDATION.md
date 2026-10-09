@@ -55,6 +55,12 @@ requiring exactly two reads and verifying no inference races a pending decision.
 A desktop regression also exercises two simultaneous approval cards. This failed
 run is not an installed acceptance or release gate.
 
+[37972025820](https://github.com/Google-Stein/KAT/actions/runs/37972025820)
+passed build, Core/native checks, packaged/installed lifecycle and persistence,
+then stopped before inference because Ollama's upstream model-manifest service
+returned HTTP **503**. The external dependency failure was retained as a failed
+gate; the same application/tests are being retried without weakening checks.
+
 ## KAT 0.4 — bounded local capabilities
 
 Baseline is released v0.3.1, source
