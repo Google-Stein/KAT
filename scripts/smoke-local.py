@@ -23,7 +23,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="qwen3:1.7b")
     args = parser.parse_args()
-    with tempfile.TemporaryDirectory(prefix="kat-local-smoke-") as directory:
+    # Hosted Windows TEMP can use an 8.3 alias (RUNNER~1). Registered roots must
+    # match their final canonical handle path; use the runner's ordinary test root.
+    with tempfile.TemporaryDirectory(
+        prefix="kat-local-smoke-", dir=os.environ.get("RUNNER_TEMP")
+    ) as directory:
         config = CoreConfig(
             data_dir=Path(directory), api_token="real-local-smoke-token-at-least-32-characters"
         )
