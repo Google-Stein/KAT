@@ -1263,7 +1263,14 @@ def main() -> None:
                 == "openai"
             )
         )
-        button("Chat").click_input()
+        # Chat has no standalone navigation button. Return through the real
+        # Conversations landmark to its first entry (the current, newest task),
+        # without creating a new session or sending another owner message.
+        conversations = window.child_window(title="Conversations", visible_only=False)
+        conversations.wait("exists", timeout=20)
+        current_session = conversations.descendants(control_type="Button")[0]
+        reveal(current_session)
+        current_session.click_input()
         button("Allow once").click_input()
         suppressed = wait_for(
             lambda: (
