@@ -126,7 +126,10 @@ def test_weather_fixed_hosts_geocoding_fields_and_fresh_lookup(monkeypatch, tmp_
     ],
 )
 def test_weather_failures_are_bounded_and_redacted(monkeypatch, failure, code):
+    attempts = []
+
     def backend(request):
+        attempts.append(request)
         assert request.headers["accept-encoding"] == "identity"
         if failure == "compressed":
             return httpx.Response(
@@ -150,6 +153,21 @@ def test_weather_failures_are_bounded_and_redacted(monkeypatch, failure, code):
     with pytest.raises(CapabilityFailure) as error:
         weather.current(LOCATION)
     assert error.value.code == code and "private response secret" not in str(error.value)
+    assert len(attempts) == (2 if failure in {"timeout", "network"} else 1)
+
+
+def test_weather_transient_retry_is_bounded_and_returns_fresh_success(monkeypatch):
+    requests = []
+
+    def backend(request):
+        requests.append(request)
+        assert all(value <= 3.5 for value in request.extensions["timeout"].values())
+        if len(requests) == 1:
+            raise httpx.ReadTimeout("transient private diagnostic", request=request)
+        return httpx.Response(200, json=WEATHER)
+
+    result = adapter(monkeypatch, backend).current(LOCATION)
+    assert result["temperature_c"] == 17.1 and len(requests) == 2
 
 
 def test_system_metric_selector_is_strict_fresh_and_returns_only_requested_values(

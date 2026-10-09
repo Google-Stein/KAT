@@ -29,12 +29,40 @@ class OpenMeteo:
     def _request(self, endpoint: str, params: dict[str, str | int | float]) -> dict[str, Any]:
         if endpoint not in (GEOCODING, FORECAST):
             raise CapabilityFailure("weather_destination", "Unsupported weather destination.")
+        deadline = time.monotonic() + 8
+        for attempt in range(2):
+            try:
+                return self._attempt(endpoint, params, deadline)
+            except httpx.RequestError as error:
+                timeout = isinstance(error, httpx.TimeoutException)
+                if attempt == 0 and deadline - time.monotonic() > 1:
+                    logger.info(
+                        "weather_transport_retry category=%s", "timeout" if timeout else "network"
+                    )
+                    continue
+                raise CapabilityFailure(
+                    "weather_timeout" if timeout else "weather_unavailable",
+                    "Weather provider timed out. Try again."
+                    if timeout
+                    else "Weather provider could not be reached.",
+                ) from None
+        raise AssertionError("Bounded weather attempts exhausted")
+
+    def _attempt(
+        self, endpoint: str, params: dict[str, str | int | float], deadline: float
+    ) -> dict[str, Any]:
         try:
-            deadline = time.monotonic() + 8
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise CapabilityFailure("weather_timeout", "Weather provider timed out.")
             with (
                 self.client() as client,
                 client.stream(
-                    "GET", endpoint, params=params, headers={"Accept-Encoding": "identity"}
+                    "GET",
+                    endpoint,
+                    params=params,
+                    headers={"Accept-Encoding": "identity"},
+                    timeout=min(3.5, remaining),
                 ) as response,
             ):
                 logger.info(
@@ -69,14 +97,6 @@ class OpenMeteo:
                 if not isinstance(result, dict):
                     raise ValueError
                 return result
-        except httpx.TimeoutException:
-            raise CapabilityFailure(
-                "weather_timeout", "Weather provider timed out. Try again."
-            ) from None
-        except httpx.HTTPError:
-            raise CapabilityFailure(
-                "weather_unavailable", "Weather provider could not be reached."
-            ) from None
         except (ValueError, UnicodeError):
             raise CapabilityFailure(
                 "weather_malformed", "Weather provider returned unreadable data."
