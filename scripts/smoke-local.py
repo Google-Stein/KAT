@@ -204,6 +204,40 @@ def main() -> None:
                             "PASS: repeated local approval/denial; "
                             "Windows launch untested on Linux."
                         )
+                session = client.post("/sessions", json={}).json()["id"]
+                response = chat("How much RAM am I using?")
+                events = [e for e in client.get("/audit").json() if e["session_id"] == session]
+                results = [
+                    e
+                    for e in events
+                    if e["event"] == "tool_result" and e["tool_name"] == "get_system_status"
+                ]
+                if len(results) != 1 and os.environ.get("GITHUB_ACTIONS") == "true":
+                    print(
+                        json.dumps(
+                            {
+                                "test": "fresh-system",
+                                "result_count": len(results),
+                                "safe_tool_events": [
+                                    {
+                                        "event": e["event"],
+                                        "tool": e["tool_name"],
+                                        "reason": e["details"].get("reason"),
+                                    }
+                                    for e in events
+                                    if e["event"].startswith("tool_")
+                                ],
+                                "assistant_reply": response["assistant_message"]["content"][:1000],
+                            }
+                        ),
+                        flush=True,
+                    )
+                assert len(results) == 1, "RAM request did not invoke one fresh system tool"
+                assert results[0]["details"]["status"] == "completed"
+                assert results[0]["details"]["result"]["ram"]["total_bytes"] > 0
+                print(
+                    "PASS: real local current RAM request executes fresh read-only system metrics."
+                )
 
 
 if __name__ == "__main__":

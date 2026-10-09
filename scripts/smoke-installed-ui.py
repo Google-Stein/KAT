@@ -700,6 +700,28 @@ def main() -> None:
             "AND event='tool_result'",
             (session_id,),
         )
+        if len(status) != 1:
+            print(
+                json.dumps(
+                    {
+                        "test": "installed-fresh-system",
+                        "result_count": len(status),
+                        "safe_tool_events": [
+                            {
+                                "event": e["event"],
+                                "tool": e["tool_name"],
+                                "reason": json.loads(e["details"]).get("reason"),
+                            }
+                            for e in rows(
+                                "SELECT event,tool_name,details FROM audit WHERE session_id=?",
+                                (session_id,),
+                            )
+                            if e["event"].startswith("tool_")
+                        ],
+                    }
+                ),
+                flush=True,
+            )
         assert len(status) == 1
         system = json.loads(status[0]["details"])
         assert system["status"] == "completed" and system["result"]["ram"]["total_bytes"] > 0
