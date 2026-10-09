@@ -43,6 +43,7 @@ def main() -> None:
     parser.add_argument("--executable", type=Path, required=True)
     parser.add_argument("--model", default="qwen3:1.7b")
     parser.add_argument("--credentials-only", action="store_true")
+    parser.add_argument("--folder-only", action="store_true")
     args = parser.parse_args()
     try:
         win32cred.CredRead(TARGET, win32cred.CRED_TYPE_GENERIC)
@@ -144,8 +145,77 @@ def main() -> None:
         )
         assert not visible_text(value)
 
+    def register_fixture_root() -> tuple[Path, str, dict[str, Any]]:
+        nonlocal stage
+        stage = "capabilities-native-folder-selection"
+        fixture_root = Path(os.environ["RUNNER_TEMP"]) / "KAT Read Fixtures"
+        fixture_root.mkdir(exist_ok=True)
+        fixture_text = "The disposable test project's release color is cobalt blue."
+        (fixture_root / "release.txt").write_text(fixture_text, encoding="utf-8")
+        button("Settings").click_input()
+        label = window.child_window(title="Folder label", control_type="Edit", visible_only=False)
+        label.wait("exists enabled", timeout=20)
+        reveal(label)
+        label.type_keys("Test folder", with_spaces=True)
+        button("Choose folder").click_input()
+        picker = wait_for(
+            lambda: next(
+                (
+                    w
+                    for w in Application(backend="win32").connect(process=process.pid).windows()
+                    if w.class_name() == "#32770" and w.is_visible()
+                ),
+                None,
+            )
+        )
+        print(
+            json.dumps(
+                {
+                    "test": "installed-native-folder-controls",
+                    "controls": [
+                        {
+                            "class": c.class_name(),
+                            "id": c.control_id(),
+                            "visible": c.is_visible(),
+                        }
+                        for c in picker.descendants()
+                    ],
+                }
+            ),
+            flush=True,
+        )
+        edit = wait_for(
+            lambda: next((c for c in picker.descendants(class_name="Edit") if c.is_visible()), None)
+        )
+        edit.set_edit_text(str(fixture_root))
+        picker.children(class_name="Button", control_id=1)[0].click()
+        wait_for(
+            lambda: (
+                window.child_window(
+                    title="Read-only folder", control_type="Edit", visible_only=False
+                ).get_value()
+                == str(fixture_root)
+            )
+        )
+        assert not rows("SELECT id FROM read_roots"), (
+            "Picker selection registered scope without explicit Add"
+        )
+        button("Add read-only folder").click_input()
+        registered = wait_for(lambda: rows("SELECT * FROM read_roots WHERE label='Test folder'"))[0]
+        assert Path(registered["path"]) == fixture_root
+        print(
+            "PASS: installed native folder selection and explicit owner confirmation "
+            "register only a disposable local read root.",
+            flush=True,
+        )
+        return fixture_root, fixture_text, registered
+
     try:
         launch()
+        if args.folder_only:
+            register_fixture_root()
+            close()
+            return
         stage = "native-credential-entry"
         button("Settings").click_input()
         button("Set API key").click_input()
@@ -743,69 +813,7 @@ def main() -> None:
             flush=True,
         )
 
-        stage = "capabilities-native-folder-selection"
-        fixture_root = Path(os.environ["RUNNER_TEMP"]) / "KAT Read Fixtures"
-        fixture_root.mkdir(exist_ok=True)
-        fixture_text = "The disposable test project's release color is cobalt blue."
-        (fixture_root / "release.txt").write_text(fixture_text, encoding="utf-8")
-        button("Settings").click_input()
-        label = window.child_window(title="Folder label", control_type="Edit", visible_only=False)
-        label.wait("exists enabled", timeout=20)
-        reveal(label)
-        label.type_keys("Test folder", with_spaces=True)
-        button("Choose folder").click_input()
-        picker = wait_for(
-            lambda: next(
-                (
-                    w
-                    for w in Application(backend="win32").connect(process=process.pid).windows()
-                    if w.class_name() == "#32770" and w.is_visible()
-                ),
-                None,
-            )
-        )
-        print(
-            json.dumps(
-                {
-                    "test": "installed-native-folder-controls",
-                    "controls": [
-                        {
-                            "class": c.class_name(),
-                            "id": c.control_id(),
-                            "visible": c.is_visible(),
-                        }
-                        for c in picker.descendants()
-                    ],
-                }
-            ),
-            flush=True,
-        )
-        edit = wait_for(
-            lambda: next(
-                (c for c in picker.descendants(class_name="Edit") if c.is_visible()), None
-            )
-        )
-        edit.set_edit_text(str(fixture_root))
-        picker.child_window(title="OK", class_name="Button").click()
-        wait_for(
-            lambda: (
-                window.child_window(
-                    title="Read-only folder", control_type="Edit", visible_only=False
-                ).get_value()
-                == str(fixture_root)
-            )
-        )
-        assert not rows("SELECT id FROM read_roots"), (
-            "Picker selection registered scope without explicit Add"
-        )
-        button("Add read-only folder").click_input()
-        registered = wait_for(lambda: rows("SELECT * FROM read_roots WHERE label='Test folder'"))[0]
-        assert Path(registered["path"]) == fixture_root
-        print(
-            "PASS: installed native folder selection and explicit owner confirmation "
-            "register only a disposable local read root.",
-            flush=True,
-        )
+        fixture_root, fixture_text, registered = register_fixture_root()
         stage = "capabilities-local-directory-listing"
         session_id = fresh_conversation()
         send("What files are in my test folder?")
