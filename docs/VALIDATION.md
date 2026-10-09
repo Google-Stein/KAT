@@ -49,6 +49,13 @@ user text exactly. The focused diagnostic workflow permits 25 minutes for the
 observed CPU Core plus installed-UI sequence; the release job, startup, tool and
 whole-turn limits are unchanged.
 
+Focused [37911455573](https://github.com/Google-Stein/KAT/actions/runs/37911455573),
+source `ef93d595504093cd412c72771b4d464838ca5fa8`, passed the entire direct
+Qwen2.5:7b sequence with the explicit guard request. Actual audit contains
+`read_text_file` / `tool_rejected` / `path_outside_root`; no approval or content
+read was created. Earlier time/apps/name/RAM/listing/two-read assertions also
+passed. Installed acceptance on a newly built exact-source installer is still required.
+
 Full candidate [37901963119](https://github.com/Google-Stein/KAT/actions/runs/37901963119),
 source `325601432ab0053478659daafc72168f0e6b3038`, passed Core/Desktop,
 Windows unit/native tests, packaging and normal/forced lifecycle checks. Its real
