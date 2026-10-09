@@ -1,6 +1,7 @@
 """Fixed-destination credential-free Open-Meteo adapter, independent of AI."""
 
 import json
+import logging
 import time
 from datetime import datetime
 from typing import Any, Protocol
@@ -13,6 +14,7 @@ from kat_core.capability_schemas import CapabilityFailure, Location
 MAX_RESPONSE = 128 * 1024
 GEOCODING = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST = "https://api.open-meteo.com/v1/forecast"
+logger = logging.getLogger("kat_core.weather")
 
 
 class WeatherAdapter(Protocol):
@@ -35,6 +37,14 @@ class OpenMeteo:
                     "GET", endpoint, params=params, headers={"Accept-Encoding": "identity"}
                 ) as response,
             ):
+                logger.info(
+                    "weather_response endpoint=%s status=%d encoding=%s",
+                    "forecast" if endpoint == FORECAST else "geocoding",
+                    response.status_code,
+                    "identity"
+                    if response.headers.get("content-encoding", "identity").lower() == "identity"
+                    else "compressed",
+                )
                 if response.status_code != 200:
                     raise CapabilityFailure(
                         "weather_unavailable", "Weather provider is unavailable. Try again later."

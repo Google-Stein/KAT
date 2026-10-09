@@ -682,6 +682,17 @@ def main() -> None:
             ]
             assert len(fresh) == 1, "Weather request did not perform one fresh lookup"
             result = json.loads(fresh[0]["details"])
+            if result["status"] != "completed":
+                print(
+                    json.dumps(
+                        {
+                            "test": "installed-live-weather-failure",
+                            "status": result["status"],
+                            "error_code": result.get("error_code"),
+                        }
+                    ),
+                    flush=True,
+                )
             assert result["status"] == "completed", "Live weather lookup failed"
             assert (
                 result["result"]["provider"] == "open-meteo" and "temperature_c" in result["result"]
@@ -857,11 +868,26 @@ def main() -> None:
             == weather_configuration
         )
         assert rows("SELECT id FROM read_roots WHERE id=?", (registered["id"],))
+        stage = "capabilities-system-with-registered-root"
+        session_id = fresh_conversation()
+        send("How much RAM am I using?")
+        repeated_status = rows(
+            "SELECT details FROM audit WHERE session_id=? AND tool_name='get_system_status' "
+            "AND event='tool_result'",
+            (session_id,),
+        )
+        assert len(repeated_status) == 1
+        repeated_system = json.loads(repeated_status[0]["details"])
+        assert repeated_system["status"] == "completed"
+        assert repeated_system["result"]["collected_at"] > system["result"]["collected_at"]
+        assert repeated_system["result"]["ram"]["total_bytes"] > 0
+        button("Settings").click_input()
         button("Remove Test folder").click_input()
         wait_for(lambda: not rows("SELECT id FROM read_roots WHERE id=?", (registered["id"],)))
         print(
             "PASS: installed weather/read-root configuration survives relaunch; "
-            "local provider and prior memory/tool checks remain passing.",
+            "fresh RAM still works with all registered file tools, owner root removal works, "
+            "and local provider/prior memory/tool checks remain passing.",
             flush=True,
         )
         close()
