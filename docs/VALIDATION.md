@@ -5,8 +5,12 @@
 Baseline is released v0.3.1, source
 `43bcdd8fc89e0c1239706e58f8b7446e8cce9d49`. The candidate adds weather,
 system status and approved read-only roots; existing memory/provider/tool and
-lifecycle gates remain mandatory. **Windows release validation is pending** until
-the full exact-source workflow and installed real-Ollama sequence pass.
+lifecycle gates remain mandatory. **Full Windows installed acceptance passed** in
+[37917866058](https://github.com/Google-Stein/KAT/actions/runs/37917866058), exact
+source `4f2db51f04dca525553413bcc4f6de8bb695696e`, on October 9, 2026.
+Core, Desktop and Windows were all green. Publication additionally requires the
+final documentation commit to pass the same exact-source workflow; the release
+notes identify that final source and gate.
 
 ### Local checks
 
@@ -31,7 +35,35 @@ configuration. Production retains `trust_env=False`. It is external-provider
 evidence, not installed Windows or offline validation. The saved environment
 draft adds only the two weather destinations for future development.
 
-### Windows installed acceptance — pending
+### Windows installed acceptance — passed
+
+The first complete green run above built and exercised a fresh current-user NSIS
+installation. Windows used CPython **3.12.10** for setup, packaging and tests;
+Linux CI used **3.12.15**. Both follow the certified 3.12.x policy.
+
+| Actual Windows check | Result |
+| --- | --- |
+| Core unit/integration suite | **266 passed, one POSIX-only test skipped**, including real Windows path/reparse/sharing guards |
+| Native unit tests and explicit real-Core integrations | **21 passed**, five opt-in/fixture cases ignored in the ordinary run; **3 real Core integrations executed and passed** separately |
+| Startup diagnostic classifications | **18 passed** |
+| Packaged and installed lifecycle | Window created, owned Core authenticated, unauthenticated health rejected with 401; normal close and forced desktop termination stopped Core and released port 42800 |
+| Current-user installer/relaunch/uninstall | Passed in a path containing spaces; conversation data survived relaunch and uninstall with SQLite integrity intact |
+| Real Ollama 0.40.1 / Qwen2.5:7b CPU | Direct Core and installed production UI acceptance passed; no cloud key or fallback |
+| Existing tool regressions | Fresh time on both requests; new Notepad approvals/windows on repeated requests; Calculator selected, approved and launched; user applications survived normal KAT close |
+| Explicit memory regressions | Reviewed save/restart/use, current revision, Remember provenance, both name variants in new conversations after restart, unrelated-question abstention, Forget/revisions/FTS removal and zero later usage all passed |
+| Weather | Owner-selected location and **two fresh real external Open-Meteo lookups** passed through installed Ollama |
+| System status | Fresh Windows/RAM metrics passed before and after relaunch with file tools registered |
+| Bounded files | Native picker plus separate owner Add; listing; approval before content; exact disposable text in UI/transcript; metadata-only audit; actual trusted traversal rejection before approval/read; configuration persisted; owner root removal passed |
+| Repeated file reads | Direct real Ollama issued **two distinct approved reads** using exact root-relative paths; returned text stayed out of audit |
+
+The same run's Linux Core checks passed **266 tests** with one Windows-only skip;
+Desktop passed **41 tests**, lint, format, TypeScript and production build, plus
+**20 native tests**. Deterministic tests cover project isolation, OpenAI memory
+exclusion and the shared provider tool/approval boundary; these are not live
+OpenAI account certification. Owner GPU performance is not measured by CPU CI.
+All file fixtures were disposable CI data; no owner files were used.
+
+### Investigation history (superseded by the green full run)
 
 Full [37915692949](https://github.com/Google-Stein/KAT/actions/runs/37915692949),
 source `7caa3c88bb3883c4cedfb043c99f6436670d9b30`, passed Core/Desktop,

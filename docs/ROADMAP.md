@@ -12,7 +12,8 @@ flowchart TD
   Local --> Review["STOP / REVIEW — bounded explicit memory approved"]
   Review -->|"Explicit owner approval"| Intelligence["0.3 — explicit local memory"]
   Intelligence --> Retrieval["0.3.1 — lexical retrieval hotfix ✅"]
-  Retrieval --> Capabilities["0.4 — bounded weather, system and approved reads"]
+  Retrieval --> Capabilities["0.4 — bounded weather, system and approved reads ✅"]
+  Capabilities --> OwnerReview["STOP / REVIEW — owner capability feedback"]
 ```
 
 ## 0.1: Foundation — complete
@@ -88,16 +89,17 @@ No embeddings, automatic extraction or planning are part of this hotfix.
 The full installed Windows sequence passed; exact results and release gating
 are recorded in [VALIDATION.md](VALIDATION.md).
 
-## 0.4: Bounded local capabilities — owner approved
+## 0.4: Bounded local capabilities — complete
 
 External weather with explicit city configuration, fresh system metrics and
 owner-registered read-only local roots add useful narrow capabilities. Filename
 listing/search is bounded; every content read needs a fresh approval. No writes,
 shell, arbitrary URLs, browser automation or autonomy are added. Existing memory,
 time, Notepad, Calculator, credentials and lifecycle remain release regressions.
-Publication requires exact-source green Core/Desktop/Windows plus installed real
-Ollama weather/system/native-folder/read/escape/persistence acceptance. Actual
-results are recorded in [VALIDATION.md](VALIDATION.md).
+The full exact-source Core/Desktop/Windows workflow and installed real Ollama
+weather/system/native-folder/read/escape/persistence acceptance passed. Actual
+results are recorded in [VALIDATION.md](VALIDATION.md). The final tagged source
+must pass the same gate before publication. Stop here for owner feedback.
 
 ## Next bounded milestone — owner review
 
