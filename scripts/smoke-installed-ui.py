@@ -188,7 +188,11 @@ def main() -> None:
             lambda: next((c for c in picker.descendants(class_name="Edit") if c.is_visible()), None)
         )
         edit.set_edit_text(str(fixture_root))
-        picker.children(class_name="Button", control_id=1)[0].click()
+        # Commit the typed shell location with normal keyboard input. WM_SETTEXT
+        # alone changes the edit value without selecting the folder in the tree.
+        edit.type_keys("{ENTER}")
+        if picker.is_visible():
+            picker.children(class_name="Button", control_id=1)[0].click()
         wait_for(
             lambda: (
                 window.child_window(
