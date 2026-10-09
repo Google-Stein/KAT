@@ -12,7 +12,7 @@ remain mandatory; counts and actual Windows runs will be recorded after completi
 
 | Command/check | Actual result |
 | --- | --- |
-| Core `pytest tests ../tests/integration -q` | **291 passed, one Windows-only test skipped**; includes production local transport with scripted inference, SDK cloud-body exclusion, duplicate/concurrent decisions, chain/result/approval/time bounds, provider changes, recovery, schema-5 upgrade and history-window isolation |
+| Core `pytest tests ../tests/integration -q` | **293 passed, one Windows-only test skipped**; includes production local transport with scripted inference, SDK cloud-body exclusion, duplicate/concurrent decisions, chain/result/approval/time bounds, provider changes, recovery, schema-5 upgrade and history-window isolation |
 | Core/scripts/integration `ruff check`, `ruff format --check`, Core `mypy` | Passed; **35** typed source modules |
 | Desktop `npm test` | **44 passed**, including automatic answer, chained approval and cloud suppression UI |
 | Desktop `npm run lint`, `format:check`, `typecheck`, `build` | Passed at version 0.4.1 |
@@ -24,6 +24,11 @@ remain mandatory; counts and actual Windows runs will be recorded after completi
 | PowerShell startup diagnostic tests | **18 passed** using writable XDG directories; the initial Linux invocation could not create PowerShell's cache in its read-only home |
 
 These checks do not constitute installed Windows or real-Ollama validation.
+The first real-Qwen diagnostic [37968615337](https://github.com/Google-Stein/KAT/actions/runs/37968615337)
+failed on duplicate identical proposals while a read was still pending. Core now
+coalesces only exact unresolved reads within one original task, after validation;
+regressions prove completed reads and new owner requests still get fresh approvals.
+No timeout, path, approval or result bound was relaxed.
 
 ## KAT 0.4 — bounded local capabilities
 

@@ -48,7 +48,11 @@ Only tools opting into `local_result` continuation (initially `read_text_file`)
 can resume reasoning, and only on the unchanged originating Ollama route. After
 each decision, execution and continuation run under the same session lock. Resume
 waits until all approvals from that task are resolved; a denial/failure suppresses
-the chain. New tools use normal validation and individual approvals. At most six
+the chain. An identical unresolved file-read proposal from the same task returns
+its existing pending approval after normal validation, avoiding duplicate cards
+when a model repeats a pending request. Completed reads, other tasks and different
+arguments never reuse that approval. New tools use normal validation and individual
+approvals. At most six
 approvals and three automatic continuations belong to one owner request, with a
 shared 120-second active-model budget excluding owner decision time. Each tool
 keeps its 12-second deadline and each file its 64-KiB/12,000-character bounds;

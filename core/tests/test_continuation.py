@@ -103,7 +103,10 @@ def decide(client, approval, approved=True):
 
 
 def test_each_approval_is_individual_and_the_task_cannot_create_more_than_six(tmp_path):
-    with local(tmp_path) as (client, model, session, _):
+    with local(tmp_path) as (client, model, session, root):
+        names = [f"briefing{index}.txt" for index in range(7)]
+        for name in names:
+            (root / name).write_text(BODY, encoding="utf-8")
 
         def check_limit(body):
             outcomes = [json.loads(m["content"]) for m in body["messages"] if m["role"] == "tool"]
@@ -112,13 +115,60 @@ def test_each_approval_is_individual_and_the_task_cannot_create_more_than_six(tm
             assert outcomes[6]["error_code"] == "approval_budget_exhausted"
             return model.answer("Please review the six approvals.")
 
-        model.script = [model.proposal(*(["briefing.txt"] * 7)), check_limit]
+        model.script = [model.proposal(*names), check_limit]
         response = client.post(f"/sessions/{session}/messages", json={"content": "Read the file."})
         assert response.status_code == 200
         approvals = response.json()["approvals"]
         assert len(approvals) == len({a["id"] for a in approvals}) == 6
         assert all(a["status"] == "pending" for a in approvals)
         assert len(client.get("/approvals").json()) == 6
+
+
+def test_repeated_pending_read_proposal_in_one_task_uses_one_unexecuted_approval(tmp_path):
+    with (
+        local(tmp_path) as (client, model, session, _),
+        patch("kat_core.capability_tools.read_text", wraps=read_text) as read,
+    ):
+        model.script = [
+            model.proposal("briefing.txt"),
+            model.proposal("briefing.txt"),
+            model.answer("Please approve."),
+        ]
+        response = client.post(f"/sessions/{session}/messages", json={"content": "Read the file."})
+        approvals = response.json()["approvals"]
+        assert len(approvals) == 1 and read.call_count == 0
+        outcomes = [
+            json.loads(m["content"]) for m in model.requests[-1]["messages"] if m["role"] == "tool"
+        ]
+        assert len(outcomes) == 2 and outcomes[0]["approval_id"] == outcomes[1]["approval_id"]
+        model.script = [model.answer("Copper Falcon; November 12.")]
+        assert decide(client, approvals[0])["continuation"]["state"] == "completed"
+        assert read.call_count == 1
+        # A new owner request cannot reuse the old approval or completed body.
+        later = request_read(client, model, session)[0]
+        assert later["id"] != approvals[0]["id"]
+        assert later["origin_user_message_id"] != approvals[0]["origin_user_message_id"]
+        assert later["status"] == "pending" and read.call_count == 1
+
+
+def test_completed_read_is_never_coalesced_with_a_new_proposal_in_the_same_task(tmp_path):
+    with (
+        local(tmp_path) as (client, model, session, _),
+        patch("kat_core.capability_tools.read_text", wraps=read_text) as read,
+    ):
+        first = request_read(client, model, session)[0]
+        model.script = [
+            model.proposal("briefing.txt"),
+            model.answer("Please approve another read."),
+        ]
+        response = decide(client, first)
+        assert read.call_count == 1
+        second = response["new_approvals"][0]
+        assert second["id"] != first["id"] and second["status"] == "pending"
+        assert second["origin_user_message_id"] == first["origin_user_message_id"]
+        model.script = [model.answer("Copper Falcon; November 12.")]
+        assert decide(client, second)["continuation"]["state"] == "completed"
+        assert read.call_count == 2
 
 
 def test_malicious_file_data_cannot_expand_registry_roots_or_cloud_route(tmp_path):

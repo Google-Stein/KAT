@@ -2,6 +2,13 @@
 
 ## ADR 029: Durable local-only approved-result continuation
 
+Real Qwen2.5:7b acceptance exposed repeated identical read proposals while the
+first approval was still pending. Core coalesces only unresolved `read_text_file`
+requests with the same exact arguments and originating task, after validation.
+This avoids duplicate cards without reading a body or extending authorization.
+Completed reads, different arguments and new owner tasks always require new
+approvals; application-launch approvals are never coalesced.
+
 **Accepted for owner-approved 0.4.1.** 0.4.0 approval execution updated local
 results but terminated semantic reasoning. Add a provider-neutral continuation
 envelope and tool-level opt-in (`local_result` for text reads only). Schema 6

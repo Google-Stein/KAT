@@ -112,6 +112,35 @@ class TaskDispatcher:
         )
         policy = PermissionPolicy(settings.require_approval_for_low_risk)
         if spec.approval_required or policy.requires_approval(spec.risk):
+            # Some local models repeat the same proposal after receiving a
+            # pending result. One unresolved read of the exact same file in this
+            # task needs one decision, not several duplicate cards. Completed
+            # reads and other owner turns are never reused here.
+            if name == "read_text_file":
+                existing = next(
+                    (
+                        a
+                        for a in TurnStore(self.store).approvals(self.turn)
+                        if a.status == "pending"
+                        and a.tool_name == name
+                        and a.arguments == clean_arguments
+                    ),
+                    None,
+                )
+                if existing is not None:
+                    self.store.add_audit(
+                        "approval_proposal_repeated",
+                        session_id=session_id,
+                        tool_name=name,
+                        approval_id=existing.id,
+                        details={"origin_user_message_id": self.turn.origin_user_message_id},
+                    )
+                    return {
+                        "status": "pending_approval",
+                        "approval_id": existing.id,
+                        "tool_name": name,
+                        "arguments": clean_arguments,
+                    }
             current = TurnStore(self.store).get(self.turn.origin_user_message_id)
             if current is None or current.approvals_created >= MAX_APPROVALS:
                 return {
