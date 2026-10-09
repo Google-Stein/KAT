@@ -29,10 +29,21 @@ class OpenMeteo:
             raise CapabilityFailure("weather_destination", "Unsupported weather destination.")
         try:
             deadline = time.monotonic() + 8
-            with self.client() as client, client.stream("GET", endpoint, params=params) as response:
+            with (
+                self.client() as client,
+                client.stream(
+                    "GET", endpoint, params=params, headers={"Accept-Encoding": "identity"}
+                ) as response,
+            ):
                 if response.status_code != 200:
                     raise CapabilityFailure(
                         "weather_unavailable", "Weather provider is unavailable. Try again later."
+                    )
+                # Avoid unbounded decompression before the decoded-size check.
+                # Fixed providers must honor the explicitly uncompressed request.
+                if response.headers.get("content-encoding", "identity").lower() != "identity":
+                    raise CapabilityFailure(
+                        "weather_malformed", "Weather provider returned unsupported compression."
                     )
                 data = bytearray()
                 for chunk in response.iter_bytes(chunk_size=4096):

@@ -57,6 +57,7 @@ Every endpoint requires `Authorization: Bearer <runtime-token>`, including healt
 | Resource | Operations | Responsibility |
 | --- | --- | --- |
 | `/health` | GET | Service version and provider configuration status |
+| `/capabilities`, `/capabilities/weather`, `/capabilities/weather/locations`, `/capabilities/roots` | Owner GET/PUT/POST/DELETE | Explicit weather resolution/confirmation and local read-root registration/removal; absent from model tools |
 | `/sessions` | GET, POST | List and create sessions |
 | `/sessions/{id}/messages` | GET, POST | Persisted transcript and agent turns |
 | `/approvals` | GET | Pending and completed tool requests |

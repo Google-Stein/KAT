@@ -46,6 +46,32 @@ def main() -> None:
             side_effect=AssertionError("Local path tried to contact OpenAI"),
         ):
             app = create_app(config, registry=registry)
+            validate = app.state.service.registry.validate_args
+
+            def diagnose_arguments(name: str, arguments: dict):
+                try:
+                    return validate(name, arguments)
+                except ValueError:
+                    if os.environ.get("GITHUB_ACTIONS") == "true":
+                        # Types/counts only: never print argument values or arbitrary keys.
+                        print(
+                            json.dumps(
+                                {
+                                    "test": "rejected-argument-shape",
+                                    "tool": name
+                                    if name in {s.name for s in app.state.service.registry.specs()}
+                                    else "unknown",
+                                    "argument_count": len(arguments),
+                                    "value_types": sorted(
+                                        type(v).__name__ for v in arguments.values()
+                                    ),
+                                }
+                            ),
+                            flush=True,
+                        )
+                    raise
+
+            app.state.service.registry.validate_args = diagnose_arguments
             with TestClient(
                 app,
                 base_url="http://127.0.0.1",

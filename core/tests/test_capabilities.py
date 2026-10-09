@@ -1,5 +1,6 @@
 """New capabilities exercise real adapters and the shared approval boundary."""
 
+import gzip
 import json
 import os
 from unittest.mock import patch
@@ -121,10 +122,18 @@ def test_weather_fixed_hosts_geocoding_fields_and_fresh_lookup(monkeypatch, tmp_
         ("malformed", "weather_malformed"),
         ("large", "weather_malformed"),
         ("fields", "weather_malformed"),
+        ("compressed", "weather_malformed"),
     ],
 )
 def test_weather_failures_are_bounded_and_redacted(monkeypatch, failure, code):
     def backend(request):
+        assert request.headers["accept-encoding"] == "identity"
+        if failure == "compressed":
+            return httpx.Response(
+                200,
+                headers={"Content-Encoding": "gzip"},
+                content=gzip.compress(json.dumps(WEATHER).encode()),
+            )
         if failure == "timeout":
             raise httpx.ReadTimeout("private response secret", request=request)
         if failure == "network":
@@ -263,6 +272,23 @@ def test_registered_root_is_explicit_private_and_revocable(client, runtime, tmp_
     assert revoked["status"] == "failed" and marker not in json.dumps(revoked)
     assert client.get("/memories").json() == []
     assert client.get("/capabilities").json()["read_roots"] == []
+
+
+def test_owner_root_removal_cors_and_authentication(client):
+    path = "/capabilities/roots/root-" + "a" * 24
+    headers = {
+        "Origin": "http://tauri.localhost",
+        "Access-Control-Request-Method": "DELETE",
+        "Access-Control-Request-Headers": "authorization",
+    }
+    preflight = client.options(path, headers=headers)
+    assert preflight.status_code == 200
+    assert "DELETE" in preflight.headers["access-control-allow-methods"]
+    assert client.delete(path, headers={"Authorization": "Bearer invalid"}).status_code == 401
+    assert (
+        client.options(path, headers={**headers, "Origin": "https://evil.example"}).status_code
+        == 400
+    )
 
 
 def test_unregistered_roots_and_mutating_tools_never_available(client, runtime):

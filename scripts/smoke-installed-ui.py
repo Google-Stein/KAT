@@ -835,7 +835,8 @@ def main() -> None:
             == weather_configuration
         )
         assert rows("SELECT id FROM read_roots WHERE id=?", (registered["id"],))
-        button("Remove Test folder")
+        button("Remove Test folder").click_input()
+        wait_for(lambda: not rows("SELECT id FROM read_roots WHERE id=?", (registered["id"],)))
         print(
             "PASS: installed weather/read-root configuration survives relaunch; "
             "local provider and prior memory/tool checks remain passing.",

@@ -1461,7 +1461,7 @@ code {
   gap: 0.4rem;
   margin: 1rem 0;
   padding: 1rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 12px;
   overflow-wrap: anywhere;
 }

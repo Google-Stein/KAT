@@ -11,7 +11,7 @@ one returned location. No OS geolocation or tracking is used. The place/coordina
 leave the device for Open-Meteo, including when AI inference is local. This first
 adapter is for personal noncommercial use under upstream terms; availability is
 external. Requests reject redirects, ignore proxy environment, use fixed hosts,
-bounded streamed responses (128 KiB), eight-second timeout, no retries and bounded
+bounded uncompressed streamed responses (128 KiB), eight-second timeout, no retries and bounded
 parsed fields. Every weather request fetches fresh data; no historical result cache.
 
 System status uses psutil and Windows APIs, with no shell or command-line
@@ -25,6 +25,9 @@ is absent from the model tool registry. Root IDs and labels are advertised; raw
 absolute paths stay in owner configuration. Network/UNC/device namespaces, drive
 roots and reparse/symlink paths are rejected. Removal revokes future operations,
 including pending approvals. Each operation revalidates the root and arguments.
+At most 12 roots are registered. Owner labels are limited to 80 characters and
+root paths to 240; model relative paths are at most 240 and filename queries 80.
+Weather place lookup accepts 100 characters and returns at most five choices.
 
 File tools take root ID and bounded relative paths only. Parent/absolute/drive/ADS/
 device syntax, trailing-dot/space aliases and symlink/reparse escapes are rejected.

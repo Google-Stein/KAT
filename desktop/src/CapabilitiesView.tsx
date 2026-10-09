@@ -47,18 +47,16 @@ export function CapabilitiesView({ api, native }: { api: CoreApi; native: boolea
       <h3>Weather · external data</h3>
       <p className="field-hint">
         Open-Meteo receives your chosen location. Weather uses the internet even with local AI. No location
-        tracking.{' '}
-        <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">
-          Weather data by Open-Meteo
-        </a>
-        .
+        tracking. Weather data by Open-Meteo (open-meteo.com).
       </p>
       <p role="status">{configuration?.weather_location?.label ?? 'Weather location not configured'}</p>
       <form
         onSubmit={(e) => {
           e.preventDefault();
           void run(async () => {
-            setLocations(await api.weatherLocations(query));
+            const found = await api.weatherLocations(query);
+            setLocations(found);
+            if (found.length === 0) setNotice('No locations found. Try a city name.');
           });
         }}
       >
