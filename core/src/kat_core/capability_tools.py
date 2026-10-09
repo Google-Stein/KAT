@@ -1,7 +1,7 @@
 """Narrow capability definitions sharing the existing approval dispatcher."""
 
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, StringConstraints, field_validator
 
@@ -17,6 +17,10 @@ RootId = Annotated[str, StringConstraints(pattern=r"^root-[a-f0-9]{24}$")]
 
 class EmptyArgs(ToolArguments):
     pass
+
+
+class SystemArgs(ToolArguments):
+    metric: Literal["all", "ram", "cpu", "disks", "gpu", "os"] = "all"
 
 
 class FileArgs(ToolArguments):
@@ -65,11 +69,10 @@ class BoundedCapabilities:
             ),
             (
                 "get_system_status",
-                "Inspect this PC's current RAM usage (bytes/percent), CPU utilization, "
-                "local disk capacity, Windows and available GPU information. Read-only, no shell. "
-                "Takes no arguments: call with an empty object {}.",
+                "Get fresh read-only information about this PC. Choose metric 'ram' for RAM "
+                "usage, 'cpu', 'disks', 'gpu', 'os', or 'all' for an overview. No shell.",
                 ToolRisk.LOW,
-                EmptyArgs,
+                SystemArgs,
                 self.get_system,
                 False,
             ),
@@ -131,8 +134,25 @@ class BoundedCapabilities:
         return None
 
     @staticmethod
-    def get_system(_arguments: BaseModel) -> dict[str, Any]:
-        return system_status()
+    def get_system(arguments: BaseModel) -> dict[str, Any]:
+        metric = SystemArgs.model_validate(arguments.model_dump()).metric
+        result = system_status()
+        if metric == "all":
+            return result
+        fields = {
+            "ram": {"ram"},
+            "cpu": {
+                "cpu_architecture",
+                "cpu_model",
+                "logical_cpus",
+                "physical_cpus",
+                "cpu_percent",
+            },
+            "disks": {"disks"},
+            "gpu": {"gpus"},
+            "os": {"os_version", "uptime_seconds"},
+        }[metric] | {"os", "collected_at", "unavailable_metrics"}
+        return {key: value for key, value in result.items() if key in fields}
 
     def list_directory(self, arguments: BaseModel) -> dict[str, Any]:
         args = FileArgs.model_validate(arguments.model_dump())

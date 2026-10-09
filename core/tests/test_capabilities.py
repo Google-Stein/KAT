@@ -152,6 +152,31 @@ def test_weather_failures_are_bounded_and_redacted(monkeypatch, failure, code):
     assert error.value.code == code and "private response secret" not in str(error.value)
 
 
+def test_system_metric_selector_is_strict_fresh_and_returns_only_requested_values(
+    client, runtime, monkeypatch
+):
+    timestamps = iter((100, 200))
+    monkeypatch.setattr(
+        "kat_core.capability_tools.system_status",
+        lambda: {
+            "collected_at": next(timestamps),
+            "os": "Windows",
+            "unavailable_metrics": [],
+            "ram": {"used_bytes": 123, "total_bytes": 456},
+            "cpu_percent": 99,
+            "gpus": [],
+        },
+    )
+    registry = client.app.state.service.registry
+    for timestamp in (100, 200):
+        outcome = registry.execute("get_system_status", {"metric": "ram"})
+        assert outcome["collected_at"] == timestamp and outcome["ram"]["used_bytes"] == 123
+        assert "cpu_percent" not in outcome and "gpus" not in outcome
+    for invalid in ({"metric": "shell"}, {"metric": "ram", "command": "cmd"}):
+        with pytest.raises(ValueError):
+            registry.execute("get_system_status", invalid)
+
+
 def test_system_values_are_fresh_gpu_optional_and_shell_never_used(monkeypatch):
     monkeypatch.setattr("kat_core.system_status.gpu_information", lambda: [])
     values = iter((12.3, 45.6))
