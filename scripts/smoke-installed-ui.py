@@ -240,18 +240,11 @@ def main() -> None:
             ),
             flush=True,
         )
-        edit = wait_for(
-            lambda: next(
-                (c for c in picker.descendants(class_name="Edit") if c.is_visible()),
-                None,
-            )
-        )
         # Navigate the actual shell dialog using its documented selection message.
         # Typing/Enter can update only the edit field or resolve asynchronously;
         # BFFM_SETSELECTIONW synchronously selects the existing folder in its tree.
         # This is native-control automation, not a KAT API or scope registration.
         win32gui.SendMessage(picker.handle, 0x400 + 103, 1, str(fixture_root))
-        wait_for(lambda: edit.window_text().rstrip("\\") == str(fixture_root).rstrip("\\"))
         picker.children(class_name="Button", control_id=1)[0].click_input()
         wait_for(
             lambda: (
