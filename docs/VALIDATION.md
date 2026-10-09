@@ -33,6 +33,17 @@ draft adds only the two weather destinations for future development.
 
 ### Windows installed acceptance — pending
 
+Full [37915692949](https://github.com/Google-Stein/KAT/actions/runs/37915692949),
+source `7caa3c88bb3883c4cedfb043c99f6436670d9b30`, passed Core/Desktop,
+Windows build/tests/lifecycle and the complete direct Ollama suite. The installed
+helper then could not reveal Provider after the native credential-return sequence.
+The automation now tries the control's actual accessibility scroll/focus support
+before its mouse-wheel fallback and reports only geometry/state on failure.
+Focused [37917441919](https://github.com/Google-Stein/KAT/actions/runs/37917441919),
+helper source `6452d39e751eaf4a9f31e452f396dfcb87dac1e9` against that built
+Windows executable, passed real credential return and Provider/Model visibility.
+This partial UI diagnostic does not substitute for installed model/capability acceptance.
+
 Full [37912438335](https://github.com/Google-Stein/KAT/actions/runs/37912438335),
 source `79efd5c949856413c0473e113dd4bb7e9e4b2165`, passed Core/Desktop,
 Windows build/tests/lifecycle and the direct real-Ollama suite including actual
