@@ -1,4 +1,4 @@
-param([string]$Executable = '')
+param([string]$Executable = '', [string]$Model = 'qwen3:4b')
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repo = Split-Path -Parent $PSScriptRoot
@@ -10,7 +10,7 @@ New-Item -ItemType Directory -Force -Path $root | Out-Null
 # Official upstream release asset digest, not an unverified install script.
 $url = 'https://github.com/ollama/ollama/releases/download/v0.40.1/ollama-windows-amd64.zip'
 $sha256 = 'b394d14436d38032f23190e3f14eb2c6dad5ebbe4e192414f74c8fdca01703ab'
-Write-Output 'Downloading Ollama 0.40.1 (~1.47 GB) and qwen3:1.7b (~1.4 GB) for explicit real-inference tests.'
+Write-Output "Downloading Ollama 0.40.1 (~1.47 GB) and $Model for explicit real-inference tests."
 Invoke-WebRequest -Uri $url -OutFile $zip
 if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sha256) { throw 'Official Ollama asset checksum mismatch.' }
 Expand-Archive $zip -DestinationPath (Join-Path $root 'runtime') -Force
@@ -29,12 +29,12 @@ try {
     try { $null = Invoke-RestMethod 'http://127.0.0.1:11434/api/version'; break } catch { Start-Sleep -Milliseconds 300 }
   } while ((Get-Date) -lt $deadline)
   $null = Invoke-RestMethod 'http://127.0.0.1:11434/api/version'
-  & $ollama pull qwen3:1.7b
+  & $ollama pull $Model
   if ($LASTEXITCODE -ne 0) { throw 'Explicit Ollama test-model pull failed.' }
-  & $python (Join-Path $PSScriptRoot 'smoke-local.py') --model qwen3:1.7b
+  & $python (Join-Path $PSScriptRoot 'smoke-local.py') --model $Model
   if ($LASTEXITCODE -ne 0) { throw 'Actual local Core inference/tools smoke failed.' }
   if ($Executable) {
-    & $python (Join-Path $PSScriptRoot 'smoke-installed-ui.py') --executable $Executable --model qwen3:1.7b
+    & $python (Join-Path $PSScriptRoot 'smoke-installed-ui.py') --executable $Executable --model $Model
     if ($LASTEXITCODE -ne 0) { throw 'Actual installed desktop/local inference smoke failed.' }
   }
 } catch {
