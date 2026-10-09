@@ -169,6 +169,9 @@ their proper associations. OpenAI does not retrieve and its adapter independentl
 ignores any memory argument. Provider failures never switch routes. Memory context
 is not persisted as a chat/tool message or fed to future cloud requests. Replies
 are ordinary transcript data and may themselves mention remembered information.
+When memory is supplied, system instructions distinguish the human owner's
+first-person question from KAT's assistant identity and require relevant factual
+evidence to inform the answer; they do not promote memory wording to instructions.
 
 Usage stores IDs, inserted revision, session, assistant message, local provider
 and timestamp, committed atomically with the assistant reply. Inspection resolves

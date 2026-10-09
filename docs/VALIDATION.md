@@ -33,6 +33,19 @@ draft adds only the two weather destinations for future development.
 
 ### Windows installed acceptance — pending
 
+Full candidate [37901963119](https://github.com/Google-Stein/KAT/actions/runs/37901963119),
+source `325601432ab0053478659daafc72168f0e6b3038`, passed Core/Desktop,
+Windows unit/native tests, packaging and normal/forced lifecycle checks. Its real
+installed Qwen2.5:3b sequence passed tools, preferences/revisions and the first
+name question, then failed the second name answer despite correct ID/revision
+retrieval. Focused [37905251404](https://github.com/Google-Stein/KAT/actions/runs/37905251404)
+reproduced the answer "You are named KAT" for the disposable Luis memory.
+Memory instructions now distinguish the human owner from the assistant's identity
+and ask the model to answer factual questions from relevant supplied evidence.
+Retrieval, the untrusted-data envelope, permissions and OpenAI exclusion are unchanged.
+Both name variants are also required by the direct real-Ollama smoke test;
+the full installed gate remains mandatory.
+
 The extended production-UI helper requires real local Ollama, existing name-memory
 and time/Notepad/Calculator regressions, explicit city confirmation, two fresh
 external weather calls, fresh RAM metrics, native folder selection plus separate
