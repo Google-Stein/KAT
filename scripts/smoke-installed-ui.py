@@ -272,6 +272,11 @@ def main() -> None:
                         "returned_path": selected_field.get_value(),
                         "dialog_visible": picker.is_visible(),
                         "confirm_enabled": confirm.is_enabled(),
+                        "dialog_controls": [
+                            {"class": c.class_name(), "id": c.control_id(), "text": c.window_text()}
+                            for c in picker.descendants()
+                            if c.class_name() in {"Edit", "Button", "Static"}
+                        ],
                         "desktop_exit_code": process.poll(),
                     }
                 ),
