@@ -1257,8 +1257,11 @@ def main() -> None:
             title="Provider", control_type="ComboBox", visible_only=False
         )
         reveal(provider)
-        provider.type_keys("{HOME}{ENTER}")
-        button("Save settings").click_input()
+        stage = "continuation-provider-change-select-cloud"
+        # Open the real select popup before choosing an option; Home/Enter on
+        # the collapsed control can leave its current selection unchanged.
+        provider.type_keys("%{DOWN}{HOME}{ENTER}{TAB}")
+        button("Save settings").invoke()
         wait_for(lambda: visible_text("Settings saved"))
         wait_for(
             lambda: (
@@ -1303,11 +1306,12 @@ def main() -> None:
             title="Provider", control_type="ComboBox", visible_only=False
         )
         reveal(provider)
-        provider.type_keys("{HOME}{DOWN}{ENTER}")
+        stage = "continuation-provider-change-restore-local"
+        provider.type_keys("%{DOWN}{HOME}{DOWN}{ENTER}{TAB}")
         model = window.child_window(title="Model", control_type="ComboBox", visible_only=False)
         reveal(model)
         model.type_keys("^a" + args.model, with_spaces=True)
-        button("Save settings").click_input()
+        button("Save settings").invoke()
         wait_for(lambda: visible_text("Settings saved"))
         wait_for(
             lambda: (
