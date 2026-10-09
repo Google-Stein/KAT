@@ -18,7 +18,14 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    ValidationError,
+    field_validator,
+)
 
 
 class ToolRisk(StrEnum):
@@ -274,6 +281,35 @@ class ToolSpec:
 
     def validate_args(self, arguments: Mapping[str, Any]) -> BaseModel:
         return self.arguments_model.model_validate(dict(arguments))
+
+    def validation_feedback(self, error: Exception) -> list[dict[str, str]]:
+        """Schema names/categories only; exclude untrusted keys and argument values."""
+        if not isinstance(error, ValidationError):
+            return []
+        issues = {
+            "missing",
+            "extra_forbidden",
+            "string_type",
+            "string_pattern_mismatch",
+            "string_too_long",
+            "string_too_short",
+            "literal_error",
+        }
+        feedback = []
+        for problem in error.errors(include_input=False, include_context=False, include_url=False)[
+            :8
+        ]:
+            location = problem["loc"]
+            field = location[0] if location else None
+            feedback.append(
+                {
+                    "field": field
+                    if isinstance(field, str) and field in self.arguments_model.model_fields
+                    else "unknown_field",
+                    "issue": problem["type"] if problem["type"] in issues else "invalid",
+                }
+            )
+        return feedback
 
 
 class ToolRegistry:

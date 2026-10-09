@@ -12,7 +12,7 @@ the full exact-source workflow and installed real-Ollama sequence pass.
 
 | Command/check | Actual result |
 | --- | --- |
-| `uv run --directory core pytest tests ../tests/integration -q` | **264 passed, one Windows-only sharing test skipped**; includes 44 executed capability tests, weather failures/freshness/compression/retry deadline bounds, strict fresh system selection, owner registration/catalog visibility, removal CORS/authentication, path attacks, metadata-only preflight/deadline failure, addressable listing paths, content approval/audit privacy and provider-independent dispatch |
+| `uv run --directory core pytest tests ../tests/integration -q` | **266 passed, one Windows-only sharing test skipped**; includes 46 executed capability tests, weather failures/freshness/compression/retry deadline bounds, strict fresh system selection, owner registration/catalog visibility, removal CORS/authentication, path attacks, metadata-only preflight/deadline failure, addressable listing paths, private schema-error guidance, content approval/audit privacy and provider-independent dispatch |
 | Core `ruff check`, `ruff format --check`, `mypy` | Passed; **31** typed source modules; installed-UI helper and SDK integration test also linted/formatted |
 | `npm test` | **41 passed**, including explicit weather confirmation/native selection/Add and escaped text preview |
 | `npm run lint`, `format:check`, `typecheck`, `build` | All passed; production frontend built |
@@ -32,6 +32,19 @@ evidence, not installed Windows or offline validation. The saved environment
 draft adds only the two weather destinations for future development.
 
 ### Windows installed acceptance — pending
+
+Full [37912438335](https://github.com/Google-Stein/KAT/actions/runs/37912438335),
+source `79efd5c949856413c0473e113dd4bb7e9e4b2165`, passed Core/Desktop,
+Windows build/tests/lifecycle and the direct real-Ollama suite including actual
+traversal rejection. Installed credentials, time/apps, preferences/name variants,
+two live weather calls, RAM, native root Add and listing passed; the installed
+read proposal was then rejected as malformed, without approval or content access.
+Schema failures now expose only declared field names and bounded issue categories,
+argument counts and value types. Unknown keys and argument values are excluded.
+Invalid root IDs receive exact-ID correction guidance; strict validation and
+approval remain required on the corrected call. Both provider paths have regression
+coverage for privacy and approval. The UI helper fails promptly when a completed
+turn lacks the requested approval and reports those safe diagnostics.
 
 Full [37907471638](https://github.com/Google-Stein/KAT/actions/runs/37907471638),
 source `c5cdce1cc767278a3fb4ce5cd20b80edf47c3349`, passed Core/Desktop,

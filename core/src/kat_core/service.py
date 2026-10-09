@@ -96,28 +96,42 @@ class ChatService:
                             "A corrected read still requires its own owner approval."
                         )
                     return capability_failure
-                except (ValueError, TypeError, ToolExecutionError):
+                except (ValueError, TypeError, ToolExecutionError) as error:
+                    known = name in {item.name for item in self.registry.specs()}
+                    feedback = self.registry.get(name).validation_feedback(error) if known else []
                     self.store.add_audit(
                         "tool_rejected",
                         session_id=session_id,
-                        tool_name=name
-                        if name in {item.name for item in self.registry.specs()}
-                        else None,
-                        details={"reason": "invalid_or_disallowed_request"},
+                        tool_name=name if known else None,
+                        details={
+                            "reason": "invalid_or_disallowed_request",
+                            "field_errors": feedback,
+                            "argument_count": len(arguments),
+                            "value_types": sorted(
+                                type(value).__name__ for value in arguments.values()
+                            ),
+                        },
                         error="Invalid or disallowed tool request",
                     )
                     failure: dict[str, Any] = {
                         "status": "failed",
                         "error": "Invalid or disallowed tool arguments",
                     }
-                    if name in {item.name for item in self.registry.specs()}:
+                    if known:
                         fields = list(self.registry.get(name).arguments_model.model_fields)
                         failure.update(
                             error_code="invalid_tool_arguments",
                             expected_arguments=fields,
+                            field_errors=feedback,
                             error="Invalid tool arguments. Retry using only the declared fields: "
                             + (", ".join(fields) if fields else "none; pass an empty object {}"),
                         )
+                        if any(item["field"] == "root_id" for item in feedback):
+                            failure["retry_hint"] = (
+                                "Copy the exact root_id from the approved roots, including its "
+                                "hyphen and all hexadecimal characters. Preserve the requested "
+                                "relative_path. Retry once; never substitute another file."
+                            )
                     return failure
                 clean_arguments = validated.model_dump()
                 self.store.add_audit(

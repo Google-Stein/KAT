@@ -38,6 +38,11 @@ continuation or automatic memory extraction occurs after approval. Review
 
 The model, its replies, and all proposed tool arguments are untrusted. Validation, risk classification, authorization, and execution happen inside Core. Model prose cannot grant permission. The webview has only narrow native lifecycle commands; arbitrary shell access is absent.
 
+Schema rejection diagnostics contain declared field names, bounded issue categories,
+argument counts and value types. Unknown input keys and argument values are omitted.
+Correction guidance never drops fields, rewrites paths or creates an approval:
+each corrected proposal must independently pass the same validation and permission gates.
+
 This is a personal local application, not a multiuser network service. Core binds to loopback and requires a bearer token. Explicit CORS origins and native content security policy restrict the desktop's HTTP surface. These controls do not protect against malware or another process already running with the same user's privileges.
 
 ## Tools

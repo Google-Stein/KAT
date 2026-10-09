@@ -428,6 +428,52 @@ def test_rejected_time_argument_can_be_corrected_without_weakening_validation(cl
     assert len([e for e in events if e["event"] == "tool_result"]) == 2
 
 
+@pytest.mark.parametrize("provider", ["openai", "ollama"])
+def test_file_schema_feedback_is_private_and_corrected_read_still_needs_approval(
+    client, runtime, tmp_path, provider
+):
+    root = tmp_path / "allowed"
+    root.mkdir()
+    (root / "fixture.txt").write_text("Private file body", encoding="utf-8")
+    registered = client.post(
+        "/capabilities/roots", json={"label": "Test folder", "path": str(root)}
+    ).json()
+    client.put("/settings", json={"provider": provider})
+    session = client.post("/sessions", json={}).json()["id"]
+    runtime.tool_requests = [
+        (
+            "read_text_file",
+            {"root_id": 123, "relative_path": "fixture.txt", "PRIVATE_KEY_NAME": "PRIVATE_VALUE"},
+        ),
+        ("read_text_file", {"root_id": registered["id"], "relative_path": "fixture.txt"}),
+    ]
+    with patch("kat_core.capability_tools.read_text", side_effect=AssertionError("Premature read")):
+        response = client.post(
+            f"/sessions/{session}/messages", json={"content": "Read fixture.txt"}
+        )
+    assert response.status_code == 200
+    rejected, corrected = runtime.outcomes
+    assert rejected["status"] == "failed"
+    assert rejected["field_errors"] == [
+        {"field": "root_id", "issue": "string_type"},
+        {"field": "unknown_field", "issue": "extra_forbidden"},
+    ]
+    assert "Copy the exact root_id" in rejected["retry_hint"]
+    assert corrected["status"] == "pending_approval"
+    assert len(response.json()["approvals"]) == 1
+    audit = client.get("/audit").json()
+    event = next(e for e in audit if e["event"] == "tool_rejected")
+    assert event["details"]["field_errors"] == rejected["field_errors"]
+    assert event["details"]["argument_count"] == 3
+    assert event["details"]["value_types"] == ["int", "str", "str"]
+    serialized = json.dumps(audit) + json.dumps(runtime.outcomes)
+    assert all(
+        value not in serialized
+        for value in ("PRIVATE_KEY_NAME", "PRIVATE_VALUE", "Private file body")
+    )
+    assert not any(e["event"] == "tool_result" for e in audit)
+
+
 def test_owner_root_removal_cors_and_authentication(client):
     path = "/capabilities/roots/root-" + "a" * 24
     headers = {

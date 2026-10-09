@@ -312,9 +312,12 @@ def main() -> None:
                     )
                     > previous_answers
                     and (
-                        any(
-                            control.window_text() == "Allow once"
-                            for control in window.descendants(control_type="Button")
+                        (
+                            textarea.is_enabled()
+                            or any(
+                                control.window_text() == "Allow once"
+                                for control in window.descendants(control_type="Button")
+                            )
                         )
                         if needs_approval
                         else textarea.is_enabled()
@@ -329,6 +332,11 @@ def main() -> None:
                 ),
                 180,
             )
+            if needs_approval:
+                assert rows(
+                    "SELECT id FROM approvals WHERE session_id=? AND status='pending'",
+                    (session_id,),
+                ), "Real model completed the turn without the requested approval"
             assert (
                 rows(
                     "SELECT content FROM messages WHERE session_id=? AND role='user' "
@@ -1005,6 +1013,11 @@ def main() -> None:
                                     "event": row["event"],
                                     "tool": row["tool_name"],
                                     "reason": json.loads(row["details"]).get("reason"),
+                                    "field_errors": json.loads(row["details"]).get("field_errors"),
+                                    "argument_count": json.loads(row["details"]).get(
+                                        "argument_count"
+                                    ),
+                                    "value_types": json.loads(row["details"]).get("value_types"),
                                 }
                                 for row in rows(
                                     "SELECT event,tool_name,details FROM audit WHERE session_id=? "

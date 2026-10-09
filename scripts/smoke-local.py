@@ -314,6 +314,7 @@ def main() -> None:
                                             "event": e["event"],
                                             "tool": e["tool_name"],
                                             "reason": e["details"].get("reason"),
+                                            "field_errors": e["details"].get("field_errors"),
                                             "relative_path": e["details"]
                                             .get("arguments", {})
                                             .get("relative_path"),
@@ -368,6 +369,7 @@ def main() -> None:
                         "event": e["event"],
                         "tool": e["tool_name"],
                         "reason": e["details"].get("reason"),
+                        "field_errors": e["details"].get("field_errors"),
                     }
                     for e in client.get("/audit").json()
                     if e["session_id"] == session and e["event"].startswith("tool_")
