@@ -38,6 +38,7 @@ def main() -> None:
     import win32cred
     import win32gui
     from pywinauto import Application, mouse
+    from pywinauto.remote_memory_block import RemoteMemoryBlock
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--executable", type=Path, required=True)
@@ -244,7 +245,16 @@ def main() -> None:
         # Typing/Enter can update only the edit field or resolve asynchronously;
         # BFFM_SETSELECTIONW synchronously selects the existing folder in its tree.
         # This is native-control automation, not a KAT API or scope registration.
-        win32gui.SendMessage(picker.handle, 0x400 + 103, 1, str(fixture_root))
+        # Messages above WM_USER do not marshal pointers across processes. Keep
+        # the disposable path in the dialog's process until synchronous selection
+        # returns, using the same buffer helper as pywinauto's tree controls.
+        path_buffer = ctypes.create_unicode_buffer(str(fixture_root))
+        remote = RemoteMemoryBlock(picker, size=ctypes.sizeof(path_buffer))
+        try:
+            remote.Write(path_buffer)
+            win32gui.SendMessage(picker.handle, 0x400 + 103, 1, remote.mem_address)
+        finally:
+            remote.CleanUp()
         picker.children(class_name="Button", control_id=1)[0].click_input()
         wait_for(
             lambda: (
