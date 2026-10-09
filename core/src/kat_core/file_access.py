@@ -155,6 +155,33 @@ def read_text(root: Path, relative: str) -> dict[str, Any]:
     }
 
 
+def validate_text_target(root: Path, relative: str) -> None:
+    """Check only metadata before approval; never open/read the file body."""
+    path = safe_target(root, relative)
+    if path.suffix.lower() not in TEXT_EXTENSIONS:
+        raise CapabilityFailure("unsupported_file", "Choose a supported UTF-8 text filename.")
+    try:
+        with opened(path.parent, directory=True) as parent:
+            info = (
+                os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+                if isinstance(parent, int)
+                else os.stat(parent / path.name, follow_symlinks=False)
+            )
+    except OSError as error:
+        raise CapabilityFailure(
+            "file_not_found" if error.errno == 2 else "filesystem_access_failed",
+            "File or folder was not found."
+            if error.errno == 2
+            else "The local filesystem could not be accessed.",
+        ) from None
+    if not stat.S_ISREG(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+        raise CapabilityFailure(
+            "path_outside_root", "Only ordinary files inside the root are allowed."
+        )
+    if info.st_size > MAX_BYTES:
+        raise CapabilityFailure("file_too_large", "Text files must be at most 64 KiB.")
+
+
 def directory_entries(root: Path, relative: str) -> dict[str, Any]:
     path = safe_target(root, relative)
     entries: list[dict[str, Any]] = []

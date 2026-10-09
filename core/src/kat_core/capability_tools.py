@@ -7,7 +7,13 @@ from pydantic import BaseModel, Field, StringConstraints, field_validator
 
 from kat_core.capability_schemas import CapabilityFailure
 from kat_core.capability_store import CapabilityStore
-from kat_core.file_access import directory_entries, read_text, relative_parts, search_names
+from kat_core.file_access import (
+    directory_entries,
+    read_text,
+    relative_parts,
+    search_names,
+    validate_text_target,
+)
 from kat_core.system_status import system_status
 from kat_core.tools import ToolArguments, ToolRegistry, ToolRisk, ToolSpec
 from kat_core.weather import OpenMeteo, WeatherAdapter
@@ -139,6 +145,8 @@ class BoundedCapabilities:
     def approval_context(self, name: str, arguments: dict[str, Any]) -> str | None:
         if name in {"read_text_file", "list_directory", "search_files"}:
             root = self.store.root(arguments["root_id"])
+            if name == "read_text_file":
+                validate_text_target(Path(root.path), arguments["relative_path"])
             return "Read-only folder: " + root.label
         return None
 

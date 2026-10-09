@@ -334,6 +334,37 @@ def test_registered_root_is_explicit_private_and_revocable(client, runtime, tmp_
     assert client.get("/capabilities").json()["read_roots"] == []
 
 
+def test_missing_label_prefixed_file_never_creates_approval_or_reads_body(
+    client, runtime, tmp_path
+):
+    root = tmp_path / "files"
+    root.mkdir()
+    (root / "fixture.txt").write_text("owner approval is required")
+    registered = client.post(
+        "/capabilities/roots", json={"path": str(root), "label": "Test folder"}
+    ).json()
+    session = client.post("/sessions", json={}).json()["id"]
+    runtime.tool_requests = [
+        (
+            "read_text_file",
+            {"root_id": registered["id"], "relative_path": "test/folder/fixture.txt"},
+        ),
+        ("read_text_file", {"root_id": registered["id"], "relative_path": "fixture.txt"}),
+    ]
+    with patch(
+        "kat_core.capability_tools.read_text", side_effect=AssertionError("Unapproved read")
+    ):
+        result = client.post(
+            f"/sessions/{session}/messages",
+            json={"content": "Read fixture.txt from my test folder"},
+        ).json()
+    assert runtime.outcomes[0]["error_code"] == "file_not_found"
+    assert runtime.outcomes[1]["status"] == "pending_approval"
+    assert len(result["approvals"]) == 1
+    assert result["approvals"][0]["arguments"]["relative_path"] == "fixture.txt"
+    assert "owner approval is required" not in client.get("/audit").text
+
+
 def test_rejected_time_argument_can_be_corrected_without_weakening_validation(client, runtime):
     session = client.post("/sessions", json={}).json()["id"]
     runtime.tool_requests = [("get_local_time", {"timezone": "local"}), ("get_local_time", {})]

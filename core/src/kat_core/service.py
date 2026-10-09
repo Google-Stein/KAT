@@ -56,7 +56,25 @@ class ChatService:
                 try:
                     spec = self.registry.get(name)
                     validated = self.registry.validate_args(name, arguments)
-                    display_context = self.registry.approval_context(name, validated.model_dump())
+                    display_context = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            self.registry.approval_context, name, validated.model_dump()
+                        ),
+                        timeout=12,
+                    )
+                except TimeoutError:
+                    self.store.add_audit(
+                        "tool_rejected",
+                        session_id=session_id,
+                        tool_name=name,
+                        details={"reason": "tool_timeout"},
+                        error="Tool request validation timed out.",
+                    )
+                    return {
+                        "status": "failed",
+                        "error_code": "tool_timeout",
+                        "error": "Tool request validation timed out.",
+                    }
                 except CapabilityFailure as error:
                     self.store.add_audit(
                         "tool_rejected",
