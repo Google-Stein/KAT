@@ -5,7 +5,10 @@ pub fn pick_folder(parent: usize) -> Result<Option<String>, String> {
     use windows_sys::Win32::System::Com::{
         CoInitializeEx, CoTaskMemFree, CoUninitialize, COINIT_APARTMENTTHREADED,
     };
-    use windows_sys::Win32::UI::Shell::{SHBrowseForFolderW, SHGetPathFromIDListW, BROWSEINFOW};
+    use windows_sys::Win32::UI::Shell::{
+        SHBrowseForFolderW, SHGetPathFromIDListW, BIF_EDITBOX, BIF_NEWDIALOGSTYLE,
+        BIF_NONEWFOLDERBUTTON, BIF_RETURNONLYFSDIRS, BROWSEINFOW,
+    };
     unsafe {
         let status = CoInitializeEx(std::ptr::null(), COINIT_APARTMENTTHREADED as u32);
         if status < 0 {
@@ -19,7 +22,7 @@ pub fn pick_folder(parent: usize) -> Result<Option<String>, String> {
         let info = BROWSEINFOW {
             hwndOwner: parent as _,
             lpszTitle: title.as_ptr(),
-            ulFlags: 0x2051, // Filesystem, edit box, modern dialog, no new-folder action.
+            ulFlags: BIF_RETURNONLYFSDIRS | BIF_EDITBOX | BIF_NEWDIALOGSTYLE | BIF_NONEWFOLDERBUTTON,
             ..std::mem::zeroed()
         };
         let item = SHBrowseForFolderW(&info);

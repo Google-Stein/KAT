@@ -255,7 +255,9 @@ def main() -> None:
             win32gui.SendMessage(picker.handle, 0x400 + 103, 1, remote.mem_address)
         finally:
             remote.CleanUp()
-        confirm = picker.children(class_name="Button", control_id=1)[0]
+        confirm = next(
+            control for control in picker.children(class_name="Button") if control.control_id() == 1
+        )
         wait_for(confirm.is_enabled)
         confirm.click()
         selected_field = window.child_window(
