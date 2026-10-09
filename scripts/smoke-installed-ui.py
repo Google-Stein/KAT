@@ -1007,7 +1007,8 @@ def main() -> None:
                                     ),
                                 }
                                 for row in rows(
-                                    "SELECT tool_name,status,arguments FROM approvals WHERE session_id=?",
+                                    "SELECT tool_name,status,arguments FROM approvals "
+                                    "WHERE session_id=?",
                                     (session_id,),
                                 )
                             ],
