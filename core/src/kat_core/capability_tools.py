@@ -56,7 +56,8 @@ class BoundedCapabilities:
             (
                 "get_weather",
                 "Get fresh weather at the owner's configured location. "
-                "Uses external Open-Meteo HTTPS, independent of AI.",
+                "Uses external Open-Meteo HTTPS, independent of AI. "
+                "Takes no arguments: call with an empty object {}.",
                 ToolRisk.LOW,
                 EmptyArgs,
                 self.get_weather,
@@ -64,7 +65,9 @@ class BoundedCapabilities:
             ),
             (
                 "get_system_status",
-                "Get fresh read-only CPU, RAM, local disk, Windows and GPU information. No shell.",
+                "Inspect this PC's current RAM usage (bytes/percent), CPU utilization, "
+                "local disk capacity, Windows and available GPU information. Read-only, no shell. "
+                "Takes no arguments: call with an empty object {}.",
                 ToolRisk.LOW,
                 EmptyArgs,
                 self.get_system,

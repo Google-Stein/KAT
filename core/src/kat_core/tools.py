@@ -289,7 +289,8 @@ class ToolRegistry:
         self.register(
             ToolSpec(
                 name="get_local_time",
-                description="Get the current local system date, time, and timezone.",
+                description="Get the current local system date, time, and timezone. "
+                "Takes no arguments: call with an empty object {}.",
                 risk=ToolRisk.LOW,
                 arguments_model=GetLocalTimeArgs,
                 execute=self._get_local_time,
