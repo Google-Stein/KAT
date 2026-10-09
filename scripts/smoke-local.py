@@ -253,8 +253,29 @@ def main() -> None:
                 print(
                     "PASS: real local current RAM request executes fresh read-only system metrics."
                 )
+                assert client.put("/memory/settings", json={"enabled": True}).status_code == 200
+                name = client.post(
+                    "/memories", json={"content": "main user is named Luis", "confirmed": True}
+                )
+                assert name.status_code == 201, name.text
+                for question in ("What is my name?", "What am I named?"):
+                    session = client.post("/sessions", json={}).json()["id"]
+                    result = chat(question)
+                    used = client.get(f"/sessions/{session}/memory-usage").json()
+                    assert len(used) == 1 and used[0]["memory_id"] == name.json()["id"]
+                    answer = result["assistant_message"]["content"]
+                    if "luis" not in answer.lower():
+                        print(
+                            json.dumps(
+                                {"test": "real-local-fixture-name-answer", "answer": answer[:1000]}
+                            ),
+                            flush=True,
+                        )
+                    assert "luis" in answer.lower(), "Retrieved name was not reflected in answer"
+                print("PASS: real local model answers both name variants from confirmed memory.")
                 fixture = Path(directory) / "read-fixture"
                 fixture.mkdir()
+                fixture = fixture.resolve(strict=True)
                 fixture_text = "The disposable test project's release color is cobalt blue."
                 (fixture / "release.txt").write_text(fixture_text, encoding="utf-8")
                 registered = client.post(

@@ -695,6 +695,18 @@ def main() -> None:
             answer = rows(
                 "SELECT content FROM messages WHERE id=?", (used[0]["assistant_message_id"],)
             )[0]["content"]
+            if "luis" not in answer.lower():
+                # This memory and question belong only to this disposable fixture.
+                print(
+                    json.dumps(
+                        {
+                            "test": "installed-fixture-name-answer",
+                            "variant": index,
+                            "answer": answer[:1000],
+                        }
+                    ),
+                    flush=True,
+                )
             assert "luis" in answer.lower(), "Real local model did not answer the remembered name"
             summary = wait_for(
                 lambda: next(
