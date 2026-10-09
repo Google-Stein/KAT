@@ -24,6 +24,8 @@ def instructions(registry: ToolRegistry, *, has_memory: bool = False) -> str:
         else ""
     )
     capability_rules = (
+        "get_local_time, get_weather and get_system_status take NO arguments: always use {}. "
+        "open_application takes only application_id. File tools use only their declared fields. "
         "Use get_weather for each new weather request; fetch fresh external data, never invent it. "
         "Use get_system_status for current RAM, CPU, disk, GPU and OS questions. "
         "Use list_directory or search_files for registered read-only folders. "

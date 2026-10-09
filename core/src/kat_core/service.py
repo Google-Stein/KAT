@@ -76,7 +76,19 @@ class ChatService:
                         details={"reason": "invalid_or_disallowed_request"},
                         error="Invalid or disallowed tool request",
                     )
-                    return {"status": "failed", "error": "Invalid or disallowed tool arguments"}
+                    failure: dict[str, Any] = {
+                        "status": "failed",
+                        "error": "Invalid or disallowed tool arguments",
+                    }
+                    if name in {item.name for item in self.registry.specs()}:
+                        fields = list(self.registry.get(name).arguments_model.model_fields)
+                        failure.update(
+                            error_code="invalid_tool_arguments",
+                            expected_arguments=fields,
+                            error="Invalid tool arguments. Retry using only the declared fields: "
+                            + (", ".join(fields) if fields else "none; pass an empty object {}"),
+                        )
+                    return failure
                 clean_arguments = validated.model_dump()
                 self.store.add_audit(
                     "tool_requested",

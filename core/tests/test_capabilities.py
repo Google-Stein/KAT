@@ -274,6 +274,32 @@ def test_registered_root_is_explicit_private_and_revocable(client, runtime, tmp_
     assert client.get("/capabilities").json()["read_roots"] == []
 
 
+def test_rejected_time_argument_can_be_corrected_without_weakening_validation(client, runtime):
+    session = client.post("/sessions", json={}).json()["id"]
+    runtime.tool_requests = [("get_local_time", {"timezone": "local"}), ("get_local_time", {})]
+    registry = client.app.state.service.registry
+    with patch.object(registry, "execute", wraps=registry.execute) as execute:
+        assert (
+            client.post(f"/sessions/{session}/messages", json={"content": "Time now"}).status_code
+            == 200
+        )
+        assert execute.call_count == 1
+        assert runtime.outcomes[0]["status"] == "failed"
+        assert runtime.outcomes[0]["expected_arguments"] == []
+        assert runtime.outcomes[1]["status"] == "completed"
+        runtime.tool_requests = [("get_local_time", {})]
+        assert (
+            client.post(
+                f"/sessions/{session}/messages", json={"content": "Time now again"}
+            ).status_code
+            == 200
+        )
+        assert execute.call_count == 2
+    events = client.get("/audit").json()
+    assert len([e for e in events if e["event"] == "tool_rejected"]) == 1
+    assert len([e for e in events if e["event"] == "tool_result"]) == 2
+
+
 def test_owner_root_removal_cors_and_authentication(client):
     path = "/capabilities/roots/root-" + "a" * 24
     headers = {
