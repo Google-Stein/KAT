@@ -33,6 +33,22 @@ draft adds only the two weather destinations for future development.
 
 ### Windows installed acceptance — pending
 
+Full [37907471638](https://github.com/Google-Stein/KAT/actions/runs/37907471638),
+source `c5cdce1cc767278a3fb4ce5cd20b80edf47c3349`, passed Core/Desktop,
+Windows tests/build/lifecycle and the installed name variants, preferences,
+credentials, time/apps, two live weather lookups, RAM, native root Add, listing,
+and approved exact file text with metadata-only audit. Traversal acceptance then
+waited for an enabled composer despite Core completing the turn with HTTP 200.
+The helper now inspects unexpected pending approvals directly and reports safe
+tool-state metadata. Direct [37910175000](https://github.com/Google-Stein/KAT/actions/runs/37910175000)
+submitted the original ambiguous traversal wording but the model listed the folder
+instead; no traversal read reached Core. The guard check now explicitly proposes
+literal JSON arguments and requires actual trusted rejection, without a substitute
+file approval. UI entry escapes keyboard-control braces and verifies the persisted
+user text exactly. The focused diagnostic workflow permits 25 minutes for the
+observed CPU Core plus installed-UI sequence; the release job, startup, tool and
+whole-turn limits are unchanged.
+
 Full candidate [37901963119](https://github.com/Google-Stein/KAT/actions/runs/37901963119),
 source `325601432ab0053478659daafc72168f0e6b3038`, passed Core/Desktop,
 Windows unit/native tests, packaging and normal/forced lifecycle checks. Its real

@@ -329,11 +329,14 @@ def main() -> None:
                 ),
                 180,
             )
-            assert rows(
-                "SELECT content FROM messages WHERE session_id=? AND role='user' "
-                "ORDER BY rowid DESC LIMIT 1",
-                (session_id,),
-            )[0]["content"] == text, "UI keyboard entry altered the requested text"
+            assert (
+                rows(
+                    "SELECT content FROM messages WHERE session_id=? AND role='user' "
+                    "ORDER BY rowid DESC LIMIT 1",
+                    (session_id,),
+                )[0]["content"]
+                == text
+            ), "UI keyboard entry altered the requested text"
 
         stage = "real-local-chat"
         send("Hello, KAT.")
