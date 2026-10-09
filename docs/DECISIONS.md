@@ -1,5 +1,38 @@
 # Decisions
 
+## ADR 024: Fixed external weather adapter
+
+Open-Meteo provides credential-free personal noncommercial weather under upstream
+terms. The owner explicitly resolves/confirms a city; the model receives a
+parameterless current-weather capability. Code owns HTTPS hosts, coordinates,
+fields, deadlines, sizes and redirect policy. Local inference still needs this
+external non-AI service for weather. The adapter protocol permits replacement.
+
+## ADR 025: Fresh system metrics without processor commands
+
+Use maintained psutil plus fixed Win32 display APIs. Avoid `platform.processor`,
+which can invoke a subprocess on some systems. Architecture is available; CPU
+model/GPU VRAM may remain unavailable. Fresh utilization and bounded local-disk
+results are preferable to command execution or broader process inspection.
+
+## ADR 026: Owner roots with pinned path traversal
+
+Models use random root IDs and relative paths; only authenticated owner settings
+can add roots. Native selection still requires explicit Add. Reject network,
+device and reparse roots, and validate every operation. POSIX descriptor traversal
+and Windows pinned directory chains plus final-handle verification close the
+check-then-open escape. Fail closed on aliases rather than increasing authority.
+
+## ADR 027: Individual content approval and metadata-only audit
+
+Every text read requires explicit approval independent of general risk thresholds.
+Return its bounded result in the existing approval/transcript flow, without an
+automatic new model request. Operational audit receives only metadata/byte counts;
+transcript and approval retain the body. Historical outcomes remain excluded from
+future inference and never become memory automatically. Worker deadlines keep
+the API responsive; blocked OS calls may finish later and cannot be forcibly
+interrupted safely. Read-only fixed local roots limit that residual exposure.
+
 ## ADR 001: Small modular vertical slice
 
 **Accepted.** Python 3.12+ Core, FastAPI local API, Tauri 2 + React + TypeScript desktop, and SQLite persistence. Implement text chat and two bounded tools before adding voice or autonomy. These choices separate UI, runtime, storage, and permissions while keeping installation manageable.

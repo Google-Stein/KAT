@@ -268,6 +268,9 @@ class ToolSpec:
     risk: ToolRisk
     arguments_model: type[BaseModel]
     execute: Callable[[BaseModel], dict[str, Any]]
+    approval_required: bool = False
+    transient: bool = True
+    external_network: bool = False
 
     def validate_args(self, arguments: Mapping[str, Any]) -> BaseModel:
         return self.arguments_model.model_validate(dict(arguments))
@@ -279,6 +282,10 @@ class ToolRegistry:
             allowlist if allowlist is not None else ApplicationAllowlist.from_environment()
         )
         self._specs: dict[str, ToolSpec] = {}
+        self.read_roots: Callable[[], list[dict[str, str]]] = lambda: []
+        self.approval_context: Callable[[str, dict[str, Any]], str | None] = lambda _name, _args: (
+            None
+        )
         self.register(
             ToolSpec(
                 name="get_local_time",
@@ -295,11 +302,12 @@ class ToolRegistry:
                 risk=ToolRisk.MEDIUM,
                 arguments_model=OpenApplicationArgs,
                 execute=self._open_application,
+                approval_required=True,
             )
         )
 
-    def register(self, spec: ToolSpec) -> None:
-        if spec.name in self._specs:
+    def register(self, spec: ToolSpec, *, replace: bool = False) -> None:
+        if spec.name in self._specs and not replace:
             raise ValueError(f"Tool already registered: {spec.name}")
         if not issubclass(spec.arguments_model, ToolArguments):
             raise ValueError("Tool argument models must inherit strict ToolArguments")
@@ -327,6 +335,22 @@ class ToolRegistry:
 
     def public_applications(self) -> list[dict[str, str]]:
         return self.allowlist.public_entries()
+
+    @staticmethod
+    def audit_outcome(name: str, outcome: dict[str, Any]) -> dict[str, Any]:
+        if name not in {"list_directory", "read_text_file", "search_files"}:
+            return outcome
+        result = outcome.get("result") or {}
+        metadata = {
+            key: result[key]
+            for key in ("root_id", "relative_path", "bytes_returned", "file_bytes", "truncated")
+            if key in result
+        }
+        return {
+            "status": outcome.get("status"),
+            "result": metadata,
+            "error_code": outcome.get("error_code"),
+        }
 
     @staticmethod
     def _get_local_time(arguments: BaseModel) -> dict[str, Any]:

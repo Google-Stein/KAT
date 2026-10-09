@@ -23,10 +23,13 @@ export function ApprovalCard({ approval, busy, onDecision }: Props) {
       <div className="approval-details">
         <span>TOOL</span>
         <strong>{approval.tool_name.replaceAll('_', ' ')}</strong>
+        {approval.display_context && <p>{approval.display_context}</p>}
         <pre>{JSON.stringify(approval.arguments, null, 2)}</pre>
       </div>
       <p className="muted approval-caption">
-        Allow this one request. Future requests follow your permission settings.
+        {approval.tool_name === 'read_text_file'
+          ? 'Read only this file once. Its contents will appear in the local transcript; every later read needs a new approval.'
+          : 'Allow this one request. Future requests follow your permission settings.'}
       </p>
       <div className="approval-actions">
         <button className="secondary-button" disabled={busy} onClick={() => onDecision(approval.id, false)}>

@@ -435,6 +435,7 @@ export default function App() {
         )}
         {view === 'settings' && (
           <SettingsView
+            api={api}
             settings={settings}
             saving={busy}
             saved={settingsSaved}

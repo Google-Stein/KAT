@@ -2,8 +2,34 @@
 
 A local-first Windows AI assistant foundation: persistent text chat, a local authenticated Core, a typed desktop interface, and approval-controlled tools.
 
-This release supports explicit OpenAI or local Ollama conversation, session history, explicit personal/project memory, local time, and opening registered applications. It does not include voice, autonomous background work, connected services, browser automation, or arbitrary shell execution. See [product scope](docs/PRODUCT.md), [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md), [decisions](docs/DECISIONS.md), and [roadmap](docs/ROADMAP.md).
+This release supports explicit OpenAI or local Ollama conversation, session history, explicit personal/project memory, current weather, read-only system status, approved local text files, local time, and opening registered applications. See [product scope](docs/PRODUCT.md), [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md), [decisions](docs/DECISIONS.md), and [roadmap](docs/ROADMAP.md).
 
+
+## Bounded capabilities (0.4)
+
+Open **Settings → Capabilities**. For weather, enter a city such as Thornton,
+Colorado, choose **Find location**, then explicitly confirm a returned place.
+Ask “What's the weather?” Weather uses Open-Meteo's external HTTPS service even
+when inference uses local Ollama; it is not offline data. No API key, automatic
+geolocation or background tracking is used. Each request fetches fresh conditions
+and today's high/low and precipitation forecast.
+
+Ask “How much RAM am I using?” or “How much disk space do I have?” for fresh,
+read-only system metrics. Unsupported GPU information degrades gracefully.
+
+To share a local folder, enter a friendly label, use **Choose folder**, then
+explicitly **Add folder**. KAT can list names and search filenames only inside
+registered roots. Reading a supported text file requires **Allow once** for each
+request; the card shows the root label and relative filename. Content returns in
+the local transcript without automatically making another model request. Folder
+removal revokes future reads, including pending approvals. No file modification,
+shell, browser automation, scheduling or autonomy is included.
+
+Reads accept UTF-8 text up to 64 KiB and return at most 12,000 characters.
+Listings/searches are bounded; symlinks, junctions, network roots, absolute paths
+and traversal are rejected. Audit keeps file metadata and byte counts, while the
+normal local transcript retains returned text. Nothing becomes memory
+automatically. See [capabilities and exact limits](docs/CAPABILITIES.md).
 
 ## Explicit memory (0.3)
 

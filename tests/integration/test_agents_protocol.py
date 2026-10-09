@@ -74,7 +74,15 @@ async def test_actual_agents_tool_round_trip_preserves_local_security_policy(
         assert "previous_response_id" not in body
         if len(requests) == 1:
             tools = {tool["name"]: tool for tool in body["tools"]}
-            assert set(tools) == {"get_local_time", "open_application"}
+            assert set(tools) == {
+                "get_local_time",
+                "open_application",
+                "get_weather",
+                "get_system_status",
+                "list_directory",
+                "read_text_file",
+                "search_files",
+            }
             assert tools["get_local_time"]["strict"] is True
             assert tools["get_local_time"]["parameters"]["additionalProperties"] is False
             output = [

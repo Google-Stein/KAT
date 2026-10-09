@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Save, ShieldCheck } from 'lucide-react';
 import { ProviderCredentialsView } from './ProviderCredentialsView';
+import { CapabilitiesView } from './CapabilitiesView';
+import type { CoreApi } from './api';
 import type { ProviderCredentialsStatus, ProviderStatus, Settings, SettingsUpdate } from './types';
 
 interface Props {
+  api: CoreApi;
   settings: Settings | null;
   saving: boolean;
   saved: boolean;
@@ -21,6 +24,7 @@ interface Props {
 }
 
 export function SettingsView({
+  api,
   settings,
   saving,
   saved,
@@ -283,6 +287,7 @@ export function SettingsView({
             </div>
           </form>
         )}
+        <CapabilitiesView api={api} native={native} />
       </div>
     </main>
   );

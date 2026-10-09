@@ -19,6 +19,7 @@ import type {
   MemoryUsage,
   Project,
 } from './memory-types';
+import type { Capabilities, WeatherLocation, ReadRoot } from './capability-types';
 
 export class CoreError extends Error {
   constructor(
@@ -134,6 +135,21 @@ export class CoreApi {
 
   health(signal?: AbortSignal) {
     return this.request<Health>('/health', 'GET', undefined, signal);
+  }
+  capabilities() {
+    return this.request<Capabilities>('/capabilities');
+  }
+  weatherLocations(query: string) {
+    return this.request<WeatherLocation[]>('/capabilities/weather/locations', 'POST', { query });
+  }
+  setWeatherLocation(location: WeatherLocation | null) {
+    return this.request<Capabilities>('/capabilities/weather', 'PUT', { location });
+  }
+  addReadRoot(label: string, path: string) {
+    return this.request<ReadRoot>('/capabilities/roots', 'POST', { label, path });
+  }
+  removeReadRoot(id: string) {
+    return this.request<{ status: string }>(`/capabilities/roots/${encodeURIComponent(id)}`, 'DELETE');
   }
   sessions(signal?: AbortSignal) {
     return this.request<Session[]>('/sessions', 'GET', undefined, signal);

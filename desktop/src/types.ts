@@ -32,6 +32,7 @@ export interface Message {
   created_at: string;
 }
 export interface Approval {
+  display_context?: string | null;
   id: string;
   session_id: string;
   tool_name: string;

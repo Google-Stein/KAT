@@ -93,6 +93,37 @@ local route can still fail connectivity; Settings probes distinguish a stopped
 backend from an uninstalled model. Schema migration 2 adds its nonsecret endpoint
 while preserving provider/model/history/permissions and backing up version 1.
 
+## Bounded capabilities (0.4)
+
+`capability_api` exposes authenticated owner configuration; `capability_store`
+persists weather location and read-root IDs/labels/absolute paths. Schema 5 adds
+these tables and friendly approval context through the existing backed-up ordered
+migration mechanism. The native `folder_picker` returns a chosen local folder to
+Settings; registration occurs only after the owner selects Add. No root-register
+tool is offered to either model provider.
+
+`capability_tools` binds strict registry schemas to the replaceable `weather`
+adapter, `system_status`, and `file_access`. Metadata includes risk, explicit
+approval, transient semantics and external network use. Both providers retain
+the shared dispatcher. Root IDs/labels enter tool instructions; absolute owner
+paths do not. Weather uses code-owned Open-Meteo endpoints with no provider key.
+System metrics use psutil and fixed Win32 APIs. File operations revalidate roots,
+paths, type and bounds, with anchored POSIX descriptors or pinned Windows handles.
+
+Content reads execute only after a claimed one-time approval. Results appear in
+the approval/transcript without automatically initiating another inference turn.
+Audit receives a metadata projection, never file bodies. Historical tool messages
+and tool-linked assistant replies retain the 0.2.1 exclusion policy; no new
+capability creates memory. Local system/files, external non-AI weather and
+OpenAI/Ollama inference remain separate subsystems.
+
+Blocking operations run in worker threads under a 12-second API/tool deadline.
+HTTP requests also enforce eight-second transport/stream bounds. A timed-out
+worker cannot be forcibly interrupted inside an OS call; it may finish afterward.
+No result is asserted as successful after the deadline. File access is read-only
+and network roots are prohibited. Exact size, depth and count caps are documented
+in [CAPABILITIES.md](CAPABILITIES.md).
+
 ## Explicit memory / working context (0.3)
 
 Migration 3 adds projects, structured memory items, immutable revision snapshots,

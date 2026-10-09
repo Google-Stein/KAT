@@ -168,6 +168,7 @@ class Store:
         tool_name: str,
         arguments: dict[str, Any],
         risk: Literal["low", "medium", "high"],
+        display_context: str | None = None,
     ) -> Approval:
         approval = Approval(
             id=str(uuid4()),
@@ -177,10 +178,12 @@ class Store:
             risk=risk,
             status="pending",
             created_at=timestamp(),
+            display_context=display_context,
         )
         with self.transaction() as db:
             db.execute(
-                "INSERT INTO approvals VALUES (?,?,?,?,?,?,?,NULL,NULL)",
+                "INSERT INTO approvals(id,session_id,tool_name,arguments,risk,status,"
+                "created_at,display_context) VALUES (?,?,?,?,?,?,?,?)",
                 (
                     approval.id,
                     session_id,
@@ -189,6 +192,7 @@ class Store:
                     risk,
                     approval.status,
                     approval.created_at,
+                    display_context,
                 ),
             )
         return approval
@@ -239,7 +243,12 @@ class Store:
         db.execute("UPDATE sessions SET updated_at=? WHERE id=?", (now, session_id))
 
     def complete_approval(
-        self, approval_id: str, *, result: dict[str, Any] | None = None, error: str | None = None
+        self,
+        approval_id: str,
+        *,
+        result: dict[str, Any] | None = None,
+        error: str | None = None,
+        audit_result: dict[str, Any] | None = None,
     ) -> None:
         with self.transaction() as db:
             row = db.execute("SELECT * FROM approvals WHERE id=?", (approval_id,)).fetchone()
@@ -263,7 +272,10 @@ class Store:
                         session_id=row["session_id"],
                         tool_name=row["tool_name"],
                         approval_id=approval_id,
-                        details={"status": status, "result": result},
+                        details={
+                            "status": status,
+                            "result": audit_result if audit_result is not None else result,
+                        },
                         error=error,
                     ),
                 )

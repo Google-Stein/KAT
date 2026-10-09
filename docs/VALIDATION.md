@@ -1,5 +1,56 @@
 # Validation record
 
+## KAT 0.4 — bounded local capabilities
+
+Baseline is released v0.3.1, source
+`43bcdd8fc89e0c1239706e58f8b7446e8cce9d49`. The candidate adds weather,
+system status and approved read-only roots; existing memory/provider/tool and
+lifecycle gates remain mandatory. **Windows release validation is pending** until
+the full exact-source workflow and installed real-Ollama sequence pass.
+
+### Local checks
+
+| Command/check | Actual result |
+| --- | --- |
+| `uv run --directory core pytest tests ../tests/integration -q` | **254 passed**; includes 34 capability tests, weather failures/freshness, safe metrics, owner registration, path attacks, content approval/audit privacy and provider-independent dispatch |
+| Core `ruff check`, `ruff format --check`, `mypy` | Passed; **31** typed source modules; installed-UI helper and SDK integration test also linted/formatted |
+| `npm test` | **41 passed**, including explicit weather confirmation/native selection/Add and escaped text preview |
+| `npm run lint`, `format:check`, `typecheck`, `build` | All passed; production frontend built |
+| `cargo fmt --check`, `cargo test --locked --no-default-features` | Passed; **20 native tests**, four opt-in/fixture tests ignored |
+| Linux and Windows-target `cargo clippy --locked --no-default-features -- -D warnings` | Passed; Windows target checks shared native code, including folder picker; actual full Windows application build remains a CI gate |
+| `python scripts/version.py --check`, `git diff --check` | Passed; 0.4.0 manifests/locks synchronized |
+| PyInstaller one-directory `kat-core` build | Passed with certified Python 3.12.14; includes psutil and existing Agents SDK |
+| `python scripts/smoke-core.py`, same with `--executable desktop/src-tauri/binaries/kat-core/kat-core` | Both passed real startup, bearer-authenticated API, keyless failure, restart persistence and shutdown |
+| Native `cargo test ... -- --ignored --skip sleeper_fixture --test-threads=1` with `KAT_NATIVE_TEST_REPO` | **3 real Core integrations passed**: development child, packaged child, worker lifetime and released port |
+| PowerShell `tests/integration/test_windows_smoke_diagnostics.ps1` | **18 diagnostics passed** on PowerShell Core/Linux; actual Windows topology/lifecycle remains separately required |
+
+The real Open-Meteo adapter resolved Thornton, Colorado and returned current
+conditions through the cloud platform's HTTPS proxy. Direct DNS in this cloud
+machine is unavailable; this experiment overrides only the test client's proxy
+configuration. Production retains `trust_env=False`. It is external-provider
+evidence, not installed Windows or offline validation. The saved environment
+draft adds only the two weather destinations for future development.
+
+### Windows installed acceptance — pending
+
+The extended production-UI helper requires real local Ollama, existing name-memory
+and time/Notepad/Calculator regressions, explicit city confirmation, two fresh
+external weather calls, fresh RAM metrics, native folder selection plus separate
+Add, bounded listing, approval before exact disposable text is returned, audit
+body exclusion, trusted traversal rejection and configuration after relaunch.
+No owner files, fake weather or debug ports substitute for this gate.
+
+### Limits
+
+Open-Meteo is an external service under personal noncommercial upstream terms;
+current conditions are model-derived weather data rather than local sensors.
+System CPU model/GPU VRAM can be unavailable. Files are UTF-8 only, 64 KiB maximum
+with 12,000 returned characters; listing/search have explicit bounds. There is no
+body indexing, write access or automatic post-approval inference. Local transcript
+and approval records retain text; audit does not. Failed OS calls may continue in
+a worker after the API deadline. Same-user malware and manual SQLite modification
+are outside KAT's isolation boundary. See [CAPABILITIES.md](CAPABILITIES.md).
+
 ## KAT 0.3.1 — memory retrieval quality
 
 The baseline was published v0.3.0 source

@@ -82,6 +82,11 @@ def test_native_local_tool_protocol_uses_existing_permissions_and_audit(
         assert {item["function"]["name"] for item in body["tools"]} == {
             "get_local_time",
             "open_application",
+            "get_weather",
+            "get_system_status",
+            "list_directory",
+            "read_text_file",
+            "search_files",
         }
         message = {"role": "assistant", "content": "Please review the action."}
         if len(requests) == 1:

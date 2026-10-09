@@ -5,6 +5,7 @@ import json
 import logging
 from typing import Any
 
+from kat_core.capability_schemas import CapabilityFailure
 from kat_core.errors import ProviderErrorCode, ProviderFailure
 from kat_core.memory_retrieval import MemoryRetrieval
 from kat_core.memory_store import MemoryStore
@@ -55,6 +56,16 @@ class ChatService:
                 try:
                     spec = self.registry.get(name)
                     validated = self.registry.validate_args(name, arguments)
+                    display_context = self.registry.approval_context(name, validated.model_dump())
+                except CapabilityFailure as error:
+                    self.store.add_audit(
+                        "tool_rejected",
+                        session_id=session_id,
+                        tool_name=name,
+                        details={"reason": error.code},
+                        error=str(error),
+                    )
+                    return {"status": "failed", "error_code": error.code, "error": str(error)}
                 except (ValueError, TypeError, ToolExecutionError):
                     self.store.add_audit(
                         "tool_rejected",
@@ -74,12 +85,13 @@ class ChatService:
                     details={"arguments": clean_arguments, "risk": spec.risk.value},
                 )
                 policy = PermissionPolicy(settings.require_approval_for_low_risk)
-                if policy.requires_approval(spec.risk):
+                if spec.approval_required or policy.requires_approval(spec.risk):
                     approval = self.store.create_approval(
                         session_id,
                         name,
                         clean_arguments,
                         spec.risk.value,
+                        display_context=display_context,
                     )
                     created_approvals.append(approval.id)
                     self.store.add_audit(
@@ -106,7 +118,7 @@ class ChatService:
                     "tool_result",
                     session_id=session_id,
                     tool_name=name,
-                    details=outcome,
+                    details=self.registry.audit_outcome(name, outcome),
                     error=outcome.get("error"),
                 )
                 self.store.add_message(
@@ -165,9 +177,18 @@ class ChatService:
 
     async def _execute(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         try:
-            # Work is fixed and bounded: local clock or one fixed process launch.
-            result = await asyncio.to_thread(self.registry.execute, name, arguments)
+            # Each capability owns its explicit I/O and output bounds.
+            async with asyncio.timeout(12):
+                result = await asyncio.to_thread(self.registry.execute, name, arguments)
             return {"status": "completed", "result": result}
+        except TimeoutError:
+            return {
+                "status": "failed",
+                "error_code": "tool_timeout",
+                "error": "The tool exceeded its 12-second execution deadline.",
+            }
+        except CapabilityFailure as error:
+            return {"status": "failed", "error_code": error.code, "error": str(error)}
         except Exception as error:
             logger.warning(
                 "tool_execution_failed tool=%s exception_type=%s", name, type(error).__name__
@@ -184,7 +205,12 @@ class ChatService:
             if approved:
                 outcome = await self._execute(approval.tool_name, approval.arguments)
                 self.store.complete_approval(
-                    approval.id, result=outcome.get("result"), error=outcome.get("error")
+                    approval.id,
+                    result=outcome.get("result"),
+                    error=outcome.get("error"),
+                    audit_result=self.registry.audit_outcome(approval.tool_name, outcome).get(
+                        "result"
+                    ),
                 )
             updated = self.store.approval(approval.id)
             assert updated is not None

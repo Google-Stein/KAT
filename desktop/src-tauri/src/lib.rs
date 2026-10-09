@@ -2,6 +2,7 @@
 
 use serde::Serialize;
 pub mod credentials;
+pub mod folder_picker;
 #[cfg(target_os = "linux")]
 mod linux_guardian;
 #[cfg(windows)]

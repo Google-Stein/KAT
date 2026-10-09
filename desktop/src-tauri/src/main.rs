@@ -121,6 +121,23 @@ async fn remove_provider_credentials(
     .map_err(|_| "KAT credential removal worker failed.".to_owned())?
 }
 
+#[tauri::command]
+async fn choose_read_folder(window: tauri::WebviewWindow) -> Result<Option<String>, String> {
+    #[cfg(windows)]
+    let parent = window
+        .hwnd()
+        .map_err(|_| "KAT could not locate its window.")?
+        .0 as usize;
+    #[cfg(not(windows))]
+    let parent = {
+        let _ = window;
+        0
+    };
+    tauri::async_runtime::spawn_blocking(move || kat_desktop::folder_picker::pick_folder(parent))
+        .await
+        .map_err(|_| "Folder selection worker failed.".to_owned())?
+}
+
 fn main() {
     let application = tauri::Builder::default()
         .setup(|app| {
@@ -180,7 +197,8 @@ fn main() {
             restart_core,
             provider_credentials_status,
             configure_provider_credentials,
-            remove_provider_credentials
+            remove_provider_credentials,
+            choose_read_folder
         ])
         .build(tauri::generate_context!())
         .expect("KAT could not initialize its desktop window");

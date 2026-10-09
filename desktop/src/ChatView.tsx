@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { ArrowUp, Clock3, MessageSquare, Sparkles, Terminal, UserRound } from 'lucide-react';
 import { ApprovalCard } from './ApprovalCard';
+import { ToolResultView } from './ToolResultView';
 import type { Approval, Message, Session, Settings } from './types';
 import type { MemoryUsage, Project } from './memory-types';
 
@@ -177,7 +178,11 @@ export function ChatView({
                     })}
                   </time>
                 </div>
-                <div className="message-content">{message.content}</div>
+                {message.role === 'tool' ? (
+                  <ToolResultView message={message} />
+                ) : (
+                  <div className="message-content">{message.content}</div>
+                )}
                 {message.role !== 'tool' && message.id !== 'sending' && (
                   <button className="remember-button" disabled={busy} onClick={() => onRemember(message)}>
                     Remember

@@ -16,6 +16,10 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from kat_core import __version__
+from kat_core.capability_api import capability_router
+from kat_core.capability_schemas import CapabilityFailure
+from kat_core.capability_store import CapabilityStore
+from kat_core.capability_tools import BoundedCapabilities
 from kat_core.config import CoreConfig
 from kat_core.errors import ProviderFailure
 from kat_core.memory_api import memory_router
@@ -57,6 +61,8 @@ def create_app(
     providers = ProviderRegistry(config.openai_api_key)
     model = runtime or SelectedRuntime(providers, store.settings)
     tools = registry or build_tool_registry()
+    capabilities = BoundedCapabilities(CapabilityStore(store))
+    capabilities.register(tools)
     service = ChatService(store, model, tools)
 
     @asynccontextmanager
@@ -92,6 +98,13 @@ def create_app(
     )
     app.state.store, app.state.service = store, service
     app.include_router(memory_router(store, service))
+    app.include_router(capability_router(capabilities.store, capabilities.weather))
+
+    @app.exception_handler(CapabilityFailure)
+    async def capability_failure(_request: Request, error: CapabilityFailure) -> JSONResponse:
+        return JSONResponse(
+            status_code=400, content={"error": {"code": error.code, "message": str(error)}}
+        )
 
     @app.middleware("http")
     async def observe_request(request: Request, call_next: Any) -> Any:

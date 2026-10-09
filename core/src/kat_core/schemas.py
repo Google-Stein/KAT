@@ -54,6 +54,7 @@ class Approval(StrictModel):
     created_at: str
     result: dict[str, Any] | None = None
     error: str | None = None
+    display_context: str | None = None
 
 
 class ApprovalDecision(StrictModel):

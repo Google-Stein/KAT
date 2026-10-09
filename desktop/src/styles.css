@@ -1456,3 +1456,18 @@ code {
     scroll-behavior: auto !important;
   }
 }
+.read-root {
+  display: grid;
+  gap: 0.4rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+.file-preview pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 28rem;
+  overflow: auto;
+}

@@ -1,5 +1,37 @@
 # Security model
 
+## Bounded weather, system and file capabilities (0.4)
+
+Weather contacts only fixed Open-Meteo HTTPS geocoding/forecast endpoints, with
+redirects disabled, no proxy-environment inheritance, no retries, bounded
+responses and deadlines. The owner explicitly resolves/confirms a city; no OS
+geolocation is read. The configured coordinates and place query go to that
+external non-AI provider, even with local inference.
+
+System status uses psutil and fixed Win32 APIs. No shell, process command lines,
+environment, hostname, credential or arbitrary registry contents are exposed.
+CPU model and GPU VRAM may be unavailable rather than invoking vendor commands.
+
+Root registration is an authenticated owner action through Settings, with native
+folder selection on Windows and explicit Add. Models and memories cannot register
+roots or grant content permission. Arguments expose only root IDs and relative
+paths. Local fixed-drive roots are allowed; drive roots, UNC/network/device
+namespaces, traversal, ADS, reserved device names and path aliases are rejected.
+Every path component is checked. POSIX uses anchored no-follow descriptors.
+Windows pins directory handles without delete-sharing, rejects reparse points and
+compares handle-resolved paths to each exact component before reading the same
+opened handle. String-prefix checks are not used as containment authority.
+
+Listing and filename search never read bodies. Content reads always require a
+fresh specific approval, including when risk settings allow other medium-risk
+tools. Removal revokes pending reads. Only bounded UTF-8 files with allowlisted
+text extensions are read; binaries, oversized files and special files are rejected.
+Returned text is rendered as escaped text. Files cannot be written, renamed or
+deleted through tools. File audit stores metadata/byte counts, not bodies; the
+normal local transcript and approval record retain the text. No implicit model
+continuation or automatic memory extraction occurs after approval. Review
+[CAPABILITIES.md](CAPABILITIES.md) for limits and the same-user threat boundary.
+
 ## Trust boundaries
 
 The model, its replies, and all proposed tool arguments are untrusted. Validation, risk classification, authorization, and execution happen inside Core. Model prose cannot grant permission. The webview has only narrow native lifecycle commands; arbitrary shell access is absent.

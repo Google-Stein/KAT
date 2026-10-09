@@ -10,6 +10,14 @@ Conversation history, settings, approval state, and audit events survive restart
 
 "Local-first" describes ownership and persistence of data. The OpenAI adapter sends conversation context and tool descriptions to OpenAI. The Ollama adapter sends them only to an independently installed loopback backend and never falls back to cloud. Offline conversation requires installed local weights and a running local backend. The service and stored history remain usable for viewing without a model key.
 
+The owner-approved 0.4 milestone adds external weather using an explicitly
+configured city, fresh read-only system metrics, and registered local folders.
+Owners choose folders through native UI and explicitly add them; each content
+read requires separate approval. Listing and filename search stay inside those
+roots. Returned text stays in the transcript, with metadata-only operational
+audit and no automatic memory. Weather internet access is separate from AI
+provider selection. See [CAPABILITIES.md](CAPABILITIES.md) for bounds.
+
 ## Interaction principles
 
 - Keep the chat interface calm, readable, and keyboard accessible.

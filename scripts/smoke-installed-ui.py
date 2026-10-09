@@ -636,6 +636,211 @@ def main() -> None:
             "usage and response inspector are empty.",
             flush=True,
         )
+        stage = "capabilities-weather-owner-configuration"
+        button("Settings").click_input()
+        place = window.child_window(
+            title="Weather location", control_type="Edit", visible_only=False
+        )
+        place.wait("exists enabled", timeout=20)
+        reveal(place)
+        place.type_keys("Thornton, Colorado", with_spaces=True)
+        button("Find locations").click_input()
+        choice = wait_for(
+            lambda: next(
+                (
+                    c
+                    for c in window.descendants(control_type="Button")
+                    if c.window_text().startswith("Use Thornton, Colorado")
+                ),
+                None,
+            )
+        )
+        reveal(choice)
+        choice.click_input()
+        wait_for(lambda: visible_text("Weather location saved"))
+        weather_configuration = json.loads(
+            rows("SELECT weather FROM capabilities WHERE id=1")[0]["weather"]
+        )
+        assert weather_configuration["label"].startswith("Thornton, Colorado")
+        stage = "capabilities-live-weather-with-local-ai"
+        session_id = fresh_conversation()
+        for _ in range(2):
+            before = {
+                r["id"]
+                for r in rows(
+                    "SELECT id FROM audit WHERE tool_name='get_weather' AND event='tool_result'"
+                )
+            }
+            send("What's the weather?")
+            fresh = [
+                r
+                for r in rows(
+                    "SELECT id,details FROM audit WHERE tool_name='get_weather' "
+                    "AND event='tool_result'"
+                )
+                if r["id"] not in before
+            ]
+            assert len(fresh) == 1, "Weather request did not perform one fresh lookup"
+            result = json.loads(fresh[0]["details"])
+            assert result["status"] == "completed", "Live weather lookup failed"
+            assert (
+                result["result"]["provider"] == "open-meteo" and "temperature_c" in result["result"]
+            )
+            assert result["result"]["observed_at"]
+        print(
+            "PASS: installed owner-selected location and two fresh external Open-Meteo "
+            "lookups through real Ollama, no OpenAI key.",
+            flush=True,
+        )
+        stage = "capabilities-fresh-system-status"
+        session_id = fresh_conversation()
+        send("How much RAM am I using?")
+        status = rows(
+            "SELECT details FROM audit WHERE session_id=? AND tool_name='get_system_status' "
+            "AND event='tool_result'",
+            (session_id,),
+        )
+        assert len(status) == 1
+        system = json.loads(status[0]["details"])
+        assert system["status"] == "completed" and system["result"]["ram"]["total_bytes"] > 0
+        assert system["result"]["os"] == "Windows" and system["result"]["collected_at"] > 0
+        print(
+            "PASS: installed real Ollama requests current Windows/RAM metrics "
+            "from read-only system APIs.",
+            flush=True,
+        )
+
+        stage = "capabilities-native-folder-selection"
+        fixture_root = Path(os.environ["RUNNER_TEMP"]) / "KAT Read Fixtures"
+        fixture_root.mkdir(exist_ok=True)
+        fixture_text = "The disposable test project's release color is cobalt blue."
+        (fixture_root / "release.txt").write_text(fixture_text, encoding="utf-8")
+        button("Settings").click_input()
+        label = window.child_window(title="Folder label", control_type="Edit", visible_only=False)
+        label.wait("exists enabled", timeout=20)
+        reveal(label)
+        label.type_keys("Test folder", with_spaces=True)
+        button("Choose folder").click_input()
+        picker = wait_for(
+            lambda: next(
+                (
+                    w
+                    for w in Application(backend="win32").connect(process=process.pid).windows()
+                    if w.class_name() == "#32770"
+                ),
+                None,
+            )
+        )
+        edit = next(c for c in picker.descendants(class_name="Edit") if c.is_visible())
+        edit.set_edit_text(str(fixture_root))
+        picker.child_window(title="OK", class_name="Button").click()
+        wait_for(
+            lambda: (
+                window.child_window(
+                    title="Read-only folder", control_type="Edit", visible_only=False
+                ).get_value()
+                == str(fixture_root)
+            )
+        )
+        assert not rows("SELECT id FROM read_roots"), (
+            "Picker selection registered scope without explicit Add"
+        )
+        button("Add read-only folder").click_input()
+        registered = wait_for(lambda: rows("SELECT * FROM read_roots WHERE label='Test folder'"))[0]
+        assert Path(registered["path"]) == fixture_root
+        print(
+            "PASS: installed native folder selection and explicit owner confirmation "
+            "register only a disposable local read root.",
+            flush=True,
+        )
+        stage = "capabilities-local-directory-listing"
+        session_id = fresh_conversation()
+        send("What files are in my test folder?")
+        listing = rows(
+            "SELECT content FROM messages WHERE session_id=? AND role='tool'", (session_id,)
+        )
+        outcomes = [json.loads(r["content"]) for r in listing]
+        assert any(
+            o["tool_name"] == "list_directory"
+            and o["status"] == "completed"
+            and any(e["name"] == "release.txt" for e in o["result"]["entries"])
+            for o in outcomes
+        )
+        stage = "capabilities-file-content-approval"
+        send("Read release.txt from my test folder.", needs_approval=True)
+        approval = wait_for(
+            lambda: rows(
+                "SELECT * FROM approvals WHERE session_id=? AND tool_name='read_text_file' "
+                "AND status='pending'",
+                (session_id,),
+            )
+        )[0]
+        assert json.loads(approval["arguments"]) == {
+            "root_id": registered["id"],
+            "relative_path": "release.txt",
+        }
+        assert approval["display_context"] == "Read-only folder: Test folder"
+        assert not rows(
+            "SELECT id FROM messages WHERE session_id=? AND role='tool' "
+            "AND content LIKE '%cobalt blue%'",
+            (session_id,),
+        )
+        assert visible_text("Read-only folder: Test folder")
+        button("Allow once").click_input()
+        completed = wait_for(
+            lambda: rows(
+                "SELECT * FROM approvals WHERE id=? AND status='completed'", (approval["id"],)
+            )
+        )[0]
+        assert json.loads(completed["result"])["content"] == fixture_text
+        wait_for(lambda: visible_text(fixture_text))
+        assert not rows("SELECT id FROM audit WHERE details LIKE '%cobalt blue%'")
+        print(
+            "PASS: installed file-content approval precedes the read; exact text returns "
+            "in the production UI/transcript and never in audit.",
+            flush=True,
+        )
+        stage = "capabilities-traversal-rejection"
+        # A model traversal proposal exercises the actual installed dispatcher.
+        # No webview debugging or token extraction is used.
+        session_id = fresh_conversation()
+        send(
+            "Use read_text_file with root_id "
+            + registered["id"]
+            + " and relative_path ../outside.txt exactly."
+        )
+        rejected = rows(
+            "SELECT details FROM audit WHERE session_id=? AND tool_name='read_text_file' "
+            "AND event='tool_rejected'",
+            (session_id,),
+        )
+        assert rejected and any(
+            json.loads(r["details"])["reason"] == "path_outside_root" for r in rejected
+        ), "Model did not exercise trusted traversal rejection"
+        assert not rows(
+            "SELECT id FROM approvals WHERE session_id=? AND tool_name='read_text_file'",
+            (session_id,),
+        )
+        print(
+            "PASS: installed traversal proposal is rejected by trusted validation "
+            "before approval or content access.",
+            flush=True,
+        )
+        stage = "capabilities-relaunch-persistence"
+        close()
+        launch()
+        button("Settings").click_input()
+        assert (
+            json.loads(rows("SELECT weather FROM capabilities WHERE id=1")[0]["weather"])
+            == weather_configuration
+        )
+        assert rows("SELECT id FROM read_roots WHERE id=?", (registered["id"],))
+        button("Remove Test folder")
+        print(
+            "PASS: installed weather/read-root configuration survives relaunch; "
+            "local provider and prior memory/tool checks remain passing.",
+            flush=True,
+        )
         close()
         print(
             "PASS: installed Forget removes wording/revisions/FTS; a new local conversation "
