@@ -256,14 +256,25 @@ def main() -> None:
         finally:
             remote.CleanUp()
         picker.children(class_name="Button", control_id=1)[0].click_input()
-        wait_for(
-            lambda: (
-                window.child_window(
-                    title="Read-only folder", control_type="Edit", visible_only=False
-                ).get_value()
-                == str(fixture_root)
-            )
+        selected_field = window.child_window(
+            title="Read-only folder", control_type="Edit", visible_only=False
         )
+        try:
+            wait_for(lambda: selected_field.get_value() == str(fixture_root))
+        except RuntimeError:
+            print(
+                json.dumps(
+                    {
+                        "test": "disposable-native-folder-selection-result",
+                        "expected_path": str(fixture_root),
+                        "returned_path": selected_field.get_value(),
+                        "dialog_visible": picker.is_visible(),
+                        "desktop_exit_code": process.poll(),
+                    }
+                ),
+                flush=True,
+            )
+            raise
         assert not rows("SELECT id FROM read_roots"), (
             "Picker selection registered scope without explicit Add"
         )
