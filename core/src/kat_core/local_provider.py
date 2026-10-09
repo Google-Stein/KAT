@@ -38,7 +38,7 @@ class OllamaRuntime:
         # Configured is distinct from connectivity; probe reports actual backend/model status.
         return True
 
-    def client(self, timeout: float = 60) -> httpx.AsyncClient:
+    def client(self, timeout: float = 90) -> httpx.AsyncClient:
         return httpx.AsyncClient(
             base_url=self.endpoint, trust_env=False, follow_redirects=False, timeout=timeout
         )
