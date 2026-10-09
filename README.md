@@ -85,7 +85,7 @@ keep its server on loopback, disable its cloud features (`OLLAMA_NO_CLOUD=1` for
 # Recommended starting point for RTX 4090 / 24 GB VRAM: ~5 GB weights.
 ollama pull qwen3:8b
 # Smaller CPU/CI capability model, lower quality: ~2.6 GB weights.
-ollama pull qwen3:4b
+ollama pull qwen3:4b-instruct
 ```
 
 Choose **Local · Ollama** in KAT Settings, select an installed model, refresh status,
@@ -95,6 +95,12 @@ starts/stops Ollama itself. GPU acceleration is Ollama's responsibility; check
 `ollama ps` and its server diagnostics. RTX 4090 performance is not certified by
 CPU CI. Normal KAT installation contains neither backend nor model weights.
 
+For the expanded 0.4 tools, use Qwen3:4b or the recommended 8b starting point.
+Qwen3:1.7b is too unreliable at system-tool argument generation for this suite;
+KAT rejects its invalid calls rather than relaxing the schema. “Advertises tools”
+reports backend metadata, not a guarantee of model quality. Saved model selection
+never changes automatically.
+
 Try “Hello, KAT.”, “What time is it?”, then “Open Notepad.” Approve the final action
 through its card. Local failures stay local. To use cloud inference, explicitly
 select OpenAI; its context and tool descriptions leave the device for OpenAI.
@@ -102,7 +108,7 @@ select OpenAI; its context and tool descriptions leave the device for OpenAI.
 The explicit real-backend Core smoke command is:
 
 ```powershell
-.\core\.venv\Scripts\python.exe .\scripts\smoke-local.py --model qwen3:4b
+.\core\.venv\Scripts\python.exe .\scripts\smoke-local.py --model qwen3:4b-instruct
 ```
 
 It requires an already running backend/model and on Windows tests repeated time,
