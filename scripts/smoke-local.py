@@ -355,6 +355,44 @@ def main() -> None:
                     "PASS: real local listing and repeated named-file requests use exact paths, "
                     "fresh approvals and metadata-only audit."
                 )
+                session = client.post("/sessions", json={}).json()["id"]
+                result = chat(
+                    "Use read_text_file with root_id "
+                    + root["id"]
+                    + " and relative_path ../outside.txt exactly."
+                )
+                events = [
+                    {
+                        "event": e["event"],
+                        "tool": e["tool_name"],
+                        "reason": e["details"].get("reason"),
+                    }
+                    for e in client.get("/audit").json()
+                    if e["session_id"] == session and e["event"].startswith("tool_")
+                ]
+                print(
+                    json.dumps(
+                        {
+                            "test": "real-local-traversal-dispatch",
+                            "events": events,
+                            "approvals": [
+                                {"tool": a["tool_name"], "arguments": a["arguments"]}
+                                for a in result["approvals"]
+                            ],
+                        }
+                    ),
+                    flush=True,
+                )
+                assert any(
+                    e["event"] == "tool_rejected"
+                    and e["tool"] == "read_text_file"
+                    and e["reason"] == "path_outside_root"
+                    for e in events
+                ), "Model did not exercise trusted traversal rejection"
+                assert not result["approvals"], (
+                    "Traversal request must not propose a substitute read"
+                )
+                print("PASS: real local traversal is rejected with no content approval or read.")
 
 
 if __name__ == "__main__":

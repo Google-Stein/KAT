@@ -286,7 +286,7 @@ def main() -> None:
             textarea.wait("visible enabled", timeout=20)
             return textarea
 
-        def send(text: str, *, needs_approval: bool = False) -> None:
+        def send(text: str, *, needs_approval: bool = False, accept_pending: bool = False) -> None:
             previous_answers = len(
                 rows(
                     "SELECT id FROM messages WHERE session_id=? AND role='assistant'", (session_id,)
@@ -314,6 +314,13 @@ def main() -> None:
                         )
                         if needs_approval
                         else textarea.is_enabled()
+                        or (
+                            accept_pending
+                            and rows(
+                                "SELECT id FROM approvals WHERE session_id=? AND status='pending'",
+                                (session_id,),
+                            )
+                        )
                     )
                 ),
                 180,
@@ -908,10 +915,12 @@ def main() -> None:
         # A model traversal proposal exercises the actual installed dispatcher.
         # No webview debugging or token extraction is used.
         session_id = fresh_conversation()
+        stage = "capabilities-traversal-request"
         send(
             "Use read_text_file with root_id "
             + registered["id"]
-            + " and relative_path ../outside.txt exactly."
+            + " and relative_path ../outside.txt exactly.",
+            accept_pending=True,
         )
         rejected = rows(
             "SELECT details FROM audit WHERE session_id=? AND tool_name='read_text_file' "
@@ -969,6 +978,43 @@ def main() -> None:
         )
     except Exception as error:
         print(f"FAIL: installed UI stage={stage} exception_type={type(error).__name__}", flush=True)
+        if "session_id" in locals():
+            # Disposable account only; counts/categories and declared file metadata,
+            # never transcript text, file bodies or credentials.
+            with suppress(Exception):
+                print(
+                    json.dumps(
+                        {
+                            "test": "installed-current-session-tool-state",
+                            "events": [
+                                {
+                                    "event": row["event"],
+                                    "tool": row["tool_name"],
+                                    "reason": json.loads(row["details"]).get("reason"),
+                                }
+                                for row in rows(
+                                    "SELECT event,tool_name,details FROM audit WHERE session_id=? "
+                                    "AND event LIKE 'tool_%'",
+                                    (session_id,),
+                                )
+                            ],
+                            "approvals": [
+                                {
+                                    "tool": row["tool_name"],
+                                    "status": row["status"],
+                                    "relative_path": json.loads(row["arguments"]).get(
+                                        "relative_path"
+                                    ),
+                                }
+                                for row in rows(
+                                    "SELECT tool_name,status,arguments FROM approvals WHERE session_id=?",
+                                    (session_id,),
+                                )
+                            ],
+                        }
+                    ),
+                    flush=True,
+                )
         # Keep diagnostics actionable without printing exception messages, code
         # lines, local variables, transcript contents or credential dialog text.
         print(
