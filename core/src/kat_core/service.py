@@ -83,7 +83,15 @@ class ChatService:
                         details={"reason": error.code},
                         error=str(error),
                     )
-                    return {"status": "failed", "error_code": error.code, "error": str(error)}
+                    failure = {"status": "failed", "error_code": error.code, "error": str(error)}
+                    if name == "read_text_file" and error.code == "file_not_found":
+                        failure["retry_hint"] = (
+                            "Fetch a fresh list_directory for this root with relative_path '.'; "
+                            "use the matching entry's relative_path exactly, "
+                            "without the root label. "
+                            "A corrected read still requires its own owner approval."
+                        )
+                    return failure
                 except (ValueError, TypeError, ToolExecutionError):
                     self.store.add_audit(
                         "tool_rejected",

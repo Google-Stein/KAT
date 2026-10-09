@@ -182,6 +182,17 @@ def validate_text_target(root: Path, relative: str) -> None:
         raise CapabilityFailure("file_too_large", "Text files must be at most 64 KiB.")
 
 
+def entry_relative_path(relative: str, name: str) -> str | None:
+    if "\\" in name or "/" in name:
+        return None
+    child = "/".join((*relative_parts(relative), name))
+    try:
+        relative_parts(child)
+    except CapabilityFailure:
+        return None
+    return child
+
+
 def directory_entries(root: Path, relative: str) -> dict[str, Any]:
     path = safe_target(root, relative)
     entries: list[dict[str, Any]] = []
@@ -194,8 +205,15 @@ def directory_entries(root: Path, relative: str) -> dict[str, Any]:
             attributes = entry.stat(follow_symlinks=False)
             if entry.is_symlink() or getattr(attributes, "st_file_attributes", 0) & 0x400:
                 continue
+            child = entry_relative_path(relative, entry.name)
+            if child is None:
+                continue
             entries.append(
-                {"name": entry.name[:240], "directory": stat.S_ISDIR(attributes.st_mode)}
+                {
+                    "name": entry.name,
+                    "directory": stat.S_ISDIR(attributes.st_mode),
+                    "relative_path": child,
+                }
             )
     return {"relative_path": relative, "entries": entries, "truncated": inspected > len(entries)}
 
@@ -219,8 +237,9 @@ def search_names(root: Path, query: str) -> dict[str, Any]:
                     info = entry.stat(follow_symlinks=False)
                     if entry.is_symlink() or getattr(info, "st_file_attributes", 0) & 0x400:
                         continue
-                    child = entry.name if relative == "." else relative + "/" + entry.name
-                    relative_parts(child)
+                    child = entry_relative_path(relative, entry.name)
+                    if child is None:
+                        continue
                     directory = stat.S_ISDIR(info.st_mode)
                     if query.casefold() in entry.name.casefold():
                         matches.append({"relative_path": child, "directory": directory})

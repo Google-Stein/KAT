@@ -54,7 +54,18 @@ def main() -> None:
 
             def diagnose_arguments(name: str, arguments: dict):
                 try:
-                    return validate(name, arguments)
+                    validated = validate(name, arguments)
+                    if name == "read_text_file" and os.environ.get("GITHUB_ACTIONS") == "true":
+                        print(
+                            json.dumps(
+                                {
+                                    "test": "validated-fixture-file-request",
+                                    "relative_path": arguments.get("relative_path"),
+                                }
+                            ),
+                            flush=True,
+                        )
+                    return validated
                 except ValueError:
                     if os.environ.get("GITHUB_ACTIONS") == "true":
                         # Types/counts only: never print argument values or arbitrary keys.
@@ -251,6 +262,13 @@ def main() -> None:
                 )
                 assert registered.status_code == 201, registered.text
                 root = registered.json()
+                assert (
+                    app.state.service.registry.approval_context(
+                        "read_text_file", {"root_id": root["id"], "relative_path": "release.txt"}
+                    )
+                    == "Read-only folder: Test folder"
+                )
+                print("PASS: actual fixture exists and metadata preflight reads no body.")
                 session = client.post("/sessions", json={}).json()["id"]
                 result = chat("What files are in my test folder?")
                 assert any(

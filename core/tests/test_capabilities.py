@@ -286,6 +286,18 @@ def test_anchored_file_listing_search_read_limits_and_binary_rejection(tmp_path)
     assert len(search_names(root, "specimen")["matches"]) == 50
 
 
+def test_listing_returns_addressable_root_relative_paths_for_nested_files(tmp_path):
+    root = tmp_path / "registered"
+    nested = root / "docs"
+    nested.mkdir(parents=True)
+    (nested / "note.txt").write_text("matching file, not a guessed label prefix")
+    if os.name != "nt":
+        (nested / "trailing.").mkdir()
+    entries = directory_entries(root, "docs")["entries"]
+    assert entries == [{"name": "note.txt", "directory": False, "relative_path": "docs/note.txt"}]
+    assert read_text(root, entries[0]["relative_path"])["content"].startswith("matching file")
+
+
 def test_registered_root_is_explicit_private_and_revocable(client, runtime, tmp_path, monkeypatch):
     root = tmp_path / "readable"
     root.mkdir()
@@ -363,6 +375,31 @@ def test_missing_label_prefixed_file_never_creates_approval_or_reads_body(
     assert len(result["approvals"]) == 1
     assert result["approvals"][0]["arguments"]["relative_path"] == "fixture.txt"
     assert "owner approval is required" not in client.get("/audit").text
+
+
+def test_preflight_timeout_is_sanitized_and_never_authorizes_execution(
+    client, runtime, monkeypatch
+):
+    def blocked_metadata(_name, _arguments):
+        raise TimeoutError("private filesystem diagnostic must not escape")
+
+    monkeypatch.setattr(client.app.state.service.registry, "approval_context", blocked_metadata)
+    session = client.post("/sessions", json={}).json()["id"]
+    runtime.tool_requests = [("get_local_time", {})]
+    response = client.post(f"/sessions/{session}/messages", json={"content": "What time is it?"})
+    assert response.status_code == 200
+    assert runtime.outcomes == [
+        {
+            "status": "failed",
+            "error_code": "tool_timeout",
+            "error": "Tool request validation timed out.",
+        }
+    ]
+    assert response.json()["approvals"] == []
+    audit = client.get("/audit").json()
+    assert any(e["event"] == "tool_rejected" for e in audit)
+    assert not any(e["event"] in {"approval_decision", "tool_result"} for e in audit)
+    assert "private filesystem diagnostic" not in json.dumps(audit)
 
 
 def test_rejected_time_argument_can_be_corrected_without_weakening_validation(client, runtime):
