@@ -63,7 +63,7 @@ exclusion and the shared provider tool/approval boundary; these are not live
 OpenAI account certification. Owner GPU performance is not measured by CPU CI.
 All file fixtures were disposable CI data; no owner files were used.
 
-### Investigation history (superseded by the green full run)
+### Investigation history and subsequent release gates
 
 The first final-documentation gate
 [37920167436](https://github.com/Google-Stein/KAT/actions/runs/37920167436), source
