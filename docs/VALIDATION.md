@@ -15,6 +15,7 @@ remain mandatory; counts and actual Windows runs will be recorded after completi
 | Core `pytest tests ../tests/integration -q` | **293 passed, one Windows-only test skipped**; includes production local transport with scripted inference, SDK cloud-body exclusion, duplicate/concurrent decisions, chain/result/approval/time bounds, provider changes, recovery, schema-5 upgrade and history-window isolation |
 | Core/scripts/integration `ruff check`, `ruff format --check`, Core `mypy` | Passed; **35** typed source modules |
 | Desktop `npm test` | **45 passed**, including automatic answer, chained approval and cloud suppression UI |
+| Completed-read UI during active inference | Regression holds the model reply open and proves approved text is already visible; transcript refresh is bounded to newly completed approvals |
 | Desktop `npm run lint`, `format:check`, `typecheck`, `build` | Passed at version 0.4.1 |
 | Native `cargo test --locked --no-default-features`, `cargo fmt --check` | **20 passed**, four opt-in/fixture cases ignored; format passed |
 | Linux and Windows-target `cargo clippy ... --no-default-features -- -D warnings` | Passed |

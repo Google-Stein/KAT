@@ -234,7 +234,19 @@ describe('KAT desktop workflow', () => {
         },
       },
     ];
+    state.messages[firstSession.id].push({
+      ...savedMessage,
+      id: 'approved-file-result',
+      role: 'tool',
+      content: JSON.stringify({
+        tool_name: 'read_text_file',
+        status: 'completed',
+        result: { content: 'Current approved text is visible before the model finishes.' },
+      }),
+    });
     await screen.findByText('Thinking…');
+    await screen.findByText('Current approved text is visible before the model finishes.');
+    expect(screen.queryByText('Copper Falcon; November 12.')).not.toBeInTheDocument();
     release!();
     await screen.findByText('Copper Falcon; November 12.');
     await waitFor(() => expect(screen.getByLabelText('Message KAT')).toBeEnabled());

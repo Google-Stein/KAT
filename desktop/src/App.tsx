@@ -268,13 +268,25 @@ export default function App() {
     const sessionId = selectedId;
     const controller = new AbortController();
     let polling = false;
+    const completed = new Set(approvals.filter((a) => a.status === 'completed').map((a) => a.id));
     const progress = setInterval(() => {
       if (!sessionId || polling) return;
       polling = true;
       void api
         .approvals(sessionId, controller.signal)
-        .then((saved) => {
-          if (!controller.signal.aborted) setApprovals(saved);
+        .then(async (saved) => {
+          if (controller.signal.aborted) return;
+          setApprovals(saved);
+          const fresh = saved.filter((a) => a.status === 'completed' && !completed.has(a.id));
+          if (fresh.length) {
+            // Show the approved result while inference is still running. Fetch
+            // once per completed approval, not the full transcript on every tick.
+            const transcript = await api.messages(sessionId, controller.signal);
+            if (!controller.signal.aborted) {
+              setMessages(transcript);
+              fresh.forEach((a) => completed.add(a.id));
+            }
+          }
         })
         .catch(() => {
           /* Decision response remains authoritative. */

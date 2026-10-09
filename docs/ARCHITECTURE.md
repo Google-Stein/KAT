@@ -74,6 +74,9 @@ failed without replaying a tool or model. Pending unexecuted approvals remain
 reviewable. Repeated matching decisions return durable state; opposite decisions
 conflict. API responses and approval polling expose typed continuation status,
 assistant message and new approvals without transcript-timing guesses.
+The desktop refreshes the local transcript once when it observes a newly completed
+approval, so approved text is visible while reasoning continues. Metadata polling
+does not continuously reload historical transcripts or trigger inference.
 
 1. A model tool call passes schema and allowlist validation.
 2. Policy either authorizes immediate execution or persists a pending approval.
