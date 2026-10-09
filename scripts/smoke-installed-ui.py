@@ -259,7 +259,11 @@ def main() -> None:
             control for control in picker.children(class_name="Button") if control.control_id() == 1
         )
         wait_for(confirm.is_enabled)
-        confirm.click()
+        # The long UI sequence can leave focus on the WebView owner. BM_CLICK
+        # may do nothing for an inactive dialog; focus the real modal and click
+        # the verified OK button through normal input.
+        picker.set_focus()
+        confirm.click_input()
         selected_field = window.child_window(
             title="Read-only folder", control_type="Edit", visible_only=False
         )
