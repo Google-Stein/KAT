@@ -55,14 +55,49 @@ but does not claim semantic disambiguation. Continue owner relevance testing bef
 considering embeddings. Benchmark numbers measure the matching + unrelated query
 pair, not inference/GPU latency; the roughly 0.9 ms median increase is documented.
 
-### Windows installed acceptance — pending
+### Windows installed acceptance — passed
 
-The acceptance helper now adds the exact confirmed name through the installed UI,
-restarts KAT, asks both name questions in separate empty conversations, asserts
-the real local answer and exact ID/revision-1 inspector, then verifies unrelated
-Oslo weather records zero usage. All prior lifecycle, credential, tool and memory
-create/edit/Forget/Remember acceptance remains required. No v0.3.1 Windows or
-release validation is claimed until exact-source full CI passes.
+[Full CI **37875546219**](https://github.com/Google-Stein/KAT/actions/runs/37875546219)
+passed **Core, desktop and Windows** for source
+`4f8c49a89e1aa505fa500ac6e0c9877d5802eed4`. Windows completed on **2026-10-08
+at 20:45:26 America/Denver** (2026-10-09 02:45:26 UTC). These are actual Windows
+runtime, installation, accessibility and local-inference results.
+
+| Windows command / gate | Actual result |
+| --- | --- |
+| `scripts/build-windows.ps1 -PythonExecutable <setup-python executable>` | **CPython 3.12.10 x64**, current PyInstaller Core, desktop and `KAT_0.3.1_x64-setup.exe` passed |
+| `scripts/smoke-windows.ps1` | Actual window, authenticated owned Core, independent unauthorized **401**, single owned listener; normal close and forced desktop termination stopped Core and released **42800** |
+| `scripts/smoke-installed-windows.ps1 -LocalInference` | NSIS current-user install into a path with spaces, installed lifecycle/relaunch, real local Core/UI/tool/memory checks and uninstall/data preservation passed |
+| `scripts/test-local-windows.ps1` / `smoke-local.py` | Checksum-verified **Ollama 0.40.1 / Qwen3:1.7b CPU**; no OpenAI key, fresh time twice, distinct Notepad/Calculator selections, approvals, executions and audit passed |
+| `scripts/smoke-installed-ui.py` | Native key entry/cancel/save/replace/restart/remove using synthetic credentials; real chat, fresh time twice, two Notepad approvals/windows and Calculator approval/window passed; approved apps survived KAT close |
+| Installed memory UI sequence | All original create/enable/restart/retrieve/revision-2 edit/Forget/zero-usage/Remember/source navigation checks passed, followed by the name-recall sequence below |
+| `core/.venv/Scripts/python.exe -m pytest core/tests tests/integration -q` | **219 passed, 1 skipped** (POSIX execute-bit check); actual Windows quality and index migration tests passed |
+| `scripts/smoke-core.py --executable <packaged kat-core.exe>` | Actual authentication/keyless errors/restart persistence/shutdown passed |
+| Windows native ordinary `cargo test --locked ... --no-default-features` | **21 passed**, five fixture/explicit integration tests ignored |
+| Windows native `--ignored --skip sleeper_fixture --skip launcher_fixture --test-threads=1` | All **three** real-Core lifetime/packaging integrations passed |
+| `tests/integration/test_windows_smoke_diagnostics.ps1` | **18 checks passed**; unchanged readiness deadline, distinct failures and transient probes |
+| Installer/executable/diagnostics uploads | All passed |
+
+The new owner regression passed through production UI controls, with read-only
+database assertions and real Ollama replies:
+
+1. With retrieval explicitly enabled, review/confirm **“main user is named Luis”**
+   using Add memory. Close and relaunch the installed KAT.
+2. Start a **brand-new empty conversation** and ask **“What is my name?”**.
+   Ollama answers **Luis**; exactly one usage link references the confirmed record
+   at revision **1**. Expand **Memories used · 1** and verify the stored wording.
+3. Start **another empty conversation**, ask **“What am I named?”**, and verify
+   the real name answer, same correct ID/revision and visible response inspector.
+4. Start another conversation and ask **“What is the weather in Oslo?”**.
+   No name or other memory is selected: usage is zero and no memory inspector appears.
+
+No CI failure or timeout change was required for this hotfix. The exact public
+tag must also pass full CI **after this results-documentation commit**. Release
+notes link that final run; publication rejects any tag/source mismatch and uploads
+only its validated installer plus SHA256SUMS. The first green run above provides
+this record's actual evidence, not authorization to skip checks on later source.
+Owner RTX 4090 performance, larger models and ongoing real-world relevance remain
+owner testing; they are not certified by hosted CPU CI.
 
 ## KAT 0.3 — bounded explicit memory
 

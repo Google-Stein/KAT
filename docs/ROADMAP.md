@@ -82,6 +82,8 @@ scope, abstention, local-only context, Forget and tool authorization stay bounde
 Release requires the original gates plus installed real-Ollama name recall after
 restart, a second new-conversation wording and unrelated-weather abstention.
 No embeddings, automatic extraction or planning are part of this hotfix.
+The full installed Windows sequence passed; exact results and release gating
+are recorded in [VALIDATION.md](VALIDATION.md).
 
 ## Next bounded milestone — owner review
 
