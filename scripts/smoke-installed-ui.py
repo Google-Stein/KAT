@@ -126,8 +126,13 @@ def main() -> None:
         )
         raise RuntimeError("Settings control could not be scrolled into view")
 
-    def button(name: str) -> Any:
-        control = window.child_window(title=name, control_type="Button", visible_only=False)
+    def button(name: str, *, first: bool = False) -> Any:
+        control = window.child_window(
+            title=name,
+            control_type="Button",
+            visible_only=False,
+            **({"found_index": 0} if first else {}),
+        )
         control.wait("exists", timeout=20)
         with suppress(Exception):
             control.wrapper_object().iface_scroll_item.ScrollIntoView()
@@ -1012,11 +1017,19 @@ def main() -> None:
                     value
                     if (value := continuation_state(approval_id))["state"]
                     in {"waiting", "completed", "suppressed", "failed"}
+                    or (
+                        value["state"] == "result_available"
+                        and rows(
+                            "SELECT id FROM approvals WHERE origin_user_message_id=? "
+                            "AND status='pending'",
+                            (value["origin_user_message_id"],),
+                        )
+                    )
                     else None
                 ),
                 150,
             )
-            assert state["state"] in {"waiting", "completed"}, (
+            assert state["state"] in {"waiting", "result_available", "completed"}, (
                 "Local analysis did not complete: "
                 + str({k: state[k] for k in ("state", "reason", "count")})
             )
@@ -1066,30 +1079,35 @@ def main() -> None:
                 session_id = fresh_conversation()
             send(question, needs_approval=True)
             observed = set()
+            read_names = set()
             origin = None
             while True:
                 pending = wait_for(
                     lambda sid=session_id: rows(
-                        "SELECT * FROM approvals WHERE session_id=? AND status='pending'",
+                        "SELECT * FROM approvals WHERE session_id=? AND status='pending' "
+                        "ORDER BY created_at,id",
                         (sid,),
                     )
                 )
-                assert len(pending) == 1 and len(observed) < 3, (
-                    "Expected bounded sequential approvals"
+                assert 1 <= len(pending) <= expected_reads - len(observed), (
+                    "Expected separate bounded file approvals"
                 )
                 item = pending[0]
                 assert item["tool_name"] == "read_text_file" and item["id"] not in observed
                 assert item["id"] not in seen_file_approvals
                 seen_file_approvals.add(item["id"])
                 names = (
-                    ["briefing.txt", "companion.txt"]
+                    {"briefing.txt", "companion.txt"}
                     if label == "compare"
-                    else ["injection.txt" if label == "injection" else "briefing.txt"]
+                    else {"injection.txt" if label == "injection" else "briefing.txt"}
                 )
+                filename = json.loads(item["arguments"])["relative_path"]
+                assert filename in names - read_names
                 assert json.loads(item["arguments"]) == {
                     "root_id": registered["id"],
-                    "relative_path": names[len(observed)],
+                    "relative_path": filename,
                 }
+                read_names.add(filename)
                 observed.add(item["id"])
                 origin = origin or item["origin_user_message_id"]
                 assert item["origin_user_message_id"] == origin
@@ -1098,14 +1116,27 @@ def main() -> None:
                     "SELECT id FROM audit WHERE approval_id=? AND event='tool_result'",
                     (item["id"],),
                 )
-                button("Allow once").click_input()
+                before = continuation_state(item["id"])["count"]
+                button("Allow once", first=True).click_input()
                 state = await_analysis(item["id"])
+                if len(pending) > 1:
+                    assert state["count"] == before, "Analysis raced an unresolved file approval"
                 assert rows(
                     "SELECT id FROM approvals WHERE id=? AND status='completed'", (item["id"],)
+                )
+                assert (
+                    len(
+                        rows(
+                            "SELECT id FROM audit WHERE approval_id=? AND event='tool_result'",
+                            (item["id"],),
+                        )
+                    )
+                    == 1
                 )
                 if state["state"] == "completed":
                     break
             assert len(observed) == expected_reads
+            assert read_names == names
             answer = rows(
                 "SELECT content FROM messages WHERE id=?", (state["assistant_message_id"],)
             )[0]["content"].lower()

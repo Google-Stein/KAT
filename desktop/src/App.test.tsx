@@ -267,6 +267,43 @@ describe('KAT desktop workflow', () => {
     expect(screen.getByLabelText('Message KAT')).toBeDisabled();
   });
 
+  it('resolves simultaneous file approvals one at a time before showing the final answer', async () => {
+    const first: Approval = {
+      ...pendingApproval,
+      id: 'read-a',
+      tool_name: 'read_text_file',
+      arguments: { relative_path: 'a.txt' },
+    };
+    const second: Approval = { ...first, id: 'read-b', arguments: { relative_path: 'b.txt' } };
+    state.approvals = [first, second];
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (input, init) => {
+      if (!input.endsWith('/decision')) return original(input, init);
+      const id = input.includes('/read-a/') ? first.id : second.id;
+      state.approvals = state.approvals.map((a) => (a.id === id ? { ...a, status: 'completed' } : a));
+      const pending = state.approvals.filter((a) => a.status === 'pending');
+      const assistant = pending.length
+        ? null
+        : { ...savedMessage, id: 'comparison', content: 'Two approved files compared.' };
+      if (assistant) state.messages[firstSession.id].push(assistant);
+      return response({
+        ...state.approvals.find((a) => a.id === id)!,
+        assistant_message: assistant,
+        new_approvals: pending,
+      });
+    });
+    const user = await connect();
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Allow once' })).toHaveLength(2));
+    await user.click(screen.getAllByRole('button', { name: 'Allow once' })[0]);
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Allow once' })).toHaveLength(1));
+    expect(screen.getByLabelText('Message KAT')).toBeDisabled();
+    expect(screen.queryByText('Two approved files compared.')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Allow once' }));
+    await screen.findByText('Two approved files compared.');
+    await waitFor(() => expect(screen.getByLabelText('Message KAT')).toBeEnabled());
+    expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/decision'))).toHaveLength(2);
+  });
+
   it('explains cloud suppression while preserving the locally completed read', async () => {
     state.approvals = [
       {

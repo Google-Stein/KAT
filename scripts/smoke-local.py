@@ -418,30 +418,51 @@ def main() -> None:
                     session = client.post("/sessions", json={}).json()["id"]
                     first = chat(question)
                     pending = first["approvals"]
-                    assert len(pending) == 1, "Expected one sequential file approval"
+                    names = (
+                        {"briefing.txt", "companion.txt"}
+                        if "Compare" in question
+                        else {"injection.txt" if "injection" in question else "briefing.txt"}
+                    )
+                    assert 1 <= len(pending) <= len(names), "Expected individually approved reads"
                     ids = set()
+                    read_names = set()
                     final = None
                     while pending:
-                        assert len(ids) < 3 and len(pending) == 1
+                        assert len(ids) < len(names) and len(pending) <= len(names) - len(ids)
                         approval = pending[0]
                         assert (
                             approval["id"] not in ids and approval["tool_name"] == "read_text_file"
                         )
                         ids.add(approval["id"])
-                        names = (
-                            ["briefing.txt", "companion.txt"]
-                            if "Compare" in question
-                            else ["injection.txt" if "injection" in question else "briefing.txt"]
-                        )
+                        filename = approval["arguments"]["relative_path"]
+                        assert filename in names - read_names
                         assert approval["arguments"] == {
                             "root_id": root["id"],
-                            "relative_path": names[len(ids) - 1],
+                            "relative_path": filename,
                         }
+                        read_names.add(filename)
+                        count_before = approval["continuation"]["count"]
+                        assistant_before = approval["continuation"]["assistant_message_id"]
+                        outstanding = len(pending) > 1
                         final = client.post(
                             f"/approvals/{approval['id']}/decision", json={"approved": True}
                         ).json()
                         assert final["status"] == "completed"
                         pending = final["new_approvals"]
+                        if outstanding:
+                            assert final["continuation"]["count"] == count_before
+                            assert final["continuation"]["assistant_message_id"] == assistant_before
+                        assert (
+                            len(
+                                [
+                                    e
+                                    for e in client.get("/audit").json()
+                                    if e["approval_id"] == approval["id"]
+                                    and e["event"] == "tool_result"
+                                ]
+                            )
+                            == 1
+                        )
                     assert final and final["continuation"]["state"] == "completed", (
                         final["continuation"] if final else "No continuation response"
                     )
@@ -450,6 +471,7 @@ def main() -> None:
                         "Continuation omitted a fixture fact"
                     )
                     assert len(ids) == (2 if "Compare" in question else 1)
+                    assert read_names == names
                     assert (
                         sum(
                             m["role"] == "user"

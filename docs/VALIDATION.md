@@ -14,7 +14,7 @@ remain mandatory; counts and actual Windows runs will be recorded after completi
 | --- | --- |
 | Core `pytest tests ../tests/integration -q` | **293 passed, one Windows-only test skipped**; includes production local transport with scripted inference, SDK cloud-body exclusion, duplicate/concurrent decisions, chain/result/approval/time bounds, provider changes, recovery, schema-5 upgrade and history-window isolation |
 | Core/scripts/integration `ruff check`, `ruff format --check`, Core `mypy` | Passed; **35** typed source modules |
-| Desktop `npm test` | **44 passed**, including automatic answer, chained approval and cloud suppression UI |
+| Desktop `npm test` | **45 passed**, including automatic answer, chained approval and cloud suppression UI |
 | Desktop `npm run lint`, `format:check`, `typecheck`, `build` | Passed at version 0.4.1 |
 | Native `cargo test --locked --no-default-features`, `cargo fmt --check` | **20 passed**, four opt-in/fixture cases ignored; format passed |
 | Linux and Windows-target `cargo clippy ... --no-default-features -- -D warnings` | Passed |
@@ -29,6 +29,31 @@ failed on duplicate identical proposals while a read was still pending. Core now
 coalesces only exact unresolved reads within one original task, after validation;
 regressions prove completed reads and new owner requests still get fresh approvals.
 No timeout, path, approval or result bound was relaxed.
+
+### Real local Core acceptance — passed, installed UI gate pending
+
+[37969856623](https://github.com/Google-Stein/KAT/actions/runs/37969856623)
+passed on source `7e5e4bbb0a8e4f86bdca8fa9d4f4613f5c52c2d1` with real Windows
+CPU inference, checksum-verified Ollama 0.40.1 and Qwen2.5:7b. Production Core
+completed the Copper Falcon/November 12 semantic answer, a sequential two-file
+comparison and the malicious-file summary without another owner message.
+Time freshness, repeated approved Notepad/Calculator launches, fresh RAM, both
+memory-name variants, exact file paths, metadata-only preflight/audit and trusted
+traversal rejection also passed. OpenAI construction was explicitly forbidden.
+This focused run does not test the installed desktop.
+
+The initial full gate [37968591233](https://github.com/Google-Stein/KAT/actions/runs/37968591233)
+failed at the duplicate-pending-proposal assertion, after successful build,
+Core/native tests, packaged/installed normal and forced lifecycle, and relaunch
+persistence. It is failed evidence, not a release gate.
+
+The subsequent full run [37969854586](https://github.com/Google-Stein/KAT/actions/runs/37969854586)
+passed the semantic read but failed a test assumption: real Ollama proposed both
+comparison files together. Core already safely waits for all approvals. Acceptance
+now covers both sequential and simultaneous proposals, approving each individually,
+requiring exactly two reads and verifying no inference races a pending decision.
+A desktop regression also exercises two simultaneous approval cards. This failed
+run is not an installed acceptance or release gate.
 
 ## KAT 0.4 — bounded local capabilities
 
