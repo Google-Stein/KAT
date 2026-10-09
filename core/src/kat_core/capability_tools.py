@@ -101,7 +101,8 @@ class BoundedCapabilities:
             ),
             (
                 "read_text_file",
-                "Read a UTF-8 text file in an approved root after one-time approval. "
+                "Propose reading a UTF-8 file in a registered root. Calling this creates "
+                "an approval card without reading its body; Core reads only after Allow once. "
                 "Use this for explicit file reading or analysis; never invent unseen contents. "
                 "Copy the requested relative filename exactly, including its extension. "
                 "Maximum 64 KiB and 12000 returned characters.",

@@ -38,6 +38,9 @@ def instructions(registry: ToolRegistry, *, has_memory: bool = False) -> str:
         + (
             "Use list_directory or search_files for registered read-only folders. "
             "Use read_text_file for file contents; it always requires individual approval. "
+            "Calling read_text_file PROPOSES the read and creates KAT's approval card; "
+            "Core does not read the body until the owner approves. You must call the tool "
+            "to create that card, rather than asking for permission only in prose. "
             "When the owner asks you to read or analyze a registered text file, request "
             "read_text_file before describing its contents. Never infer contents from a "
             "filename, and do not skip the read because the owner calls its data untrusted. "

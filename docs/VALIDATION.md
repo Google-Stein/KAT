@@ -70,6 +70,13 @@ data untrusted. The adversarial fixture, required approval, strict registry and
 all release assertions are retained. Earlier runs without approval-count metadata
 cannot conclusively distinguish zero from multiple proposals.
 
+[37974609718](https://github.com/Google-Stein/KAT/actions/runs/37974609718)
+also completed a semantic read, then produced zero proposals/events for comparison.
+The model-facing contract now explicitly says a file-tool call creates the approval
+card without reading the body. Asking for approval only in prose is insufficient.
+Trusted permission/execution logic is unchanged, and all natural-language
+acceptance questions remain unchanged for this correction.
+
 ## KAT 0.4 — bounded local capabilities
 
 Baseline is released v0.3.1, source
