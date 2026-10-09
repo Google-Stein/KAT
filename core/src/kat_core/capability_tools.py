@@ -102,6 +102,7 @@ class BoundedCapabilities:
             (
                 "read_text_file",
                 "Read a UTF-8 text file in an approved root after one-time approval. "
+                "Use this for explicit file reading or analysis; never invent unseen contents. "
                 "Copy the requested relative filename exactly, including its extension. "
                 "Maximum 64 KiB and 12000 returned characters.",
                 ToolRisk.MEDIUM,

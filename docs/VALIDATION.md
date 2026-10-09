@@ -25,7 +25,7 @@ remain mandatory; counts and actual Windows runs will be recorded after completi
 
 These checks do not constitute installed Windows or real-Ollama validation.
 The first real-Qwen diagnostic [37968615337](https://github.com/Google-Stein/KAT/actions/runs/37968615337)
-failed on duplicate identical proposals while a read was still pending. Core now
+failed its expected-one-approval assertion after repeated same-file proposals. Core now
 coalesces only exact unresolved reads within one original task, after validation;
 regressions prove completed reads and new owner requests still get fresh approvals.
 No timeout, path, approval or result bound was relaxed.
@@ -43,7 +43,7 @@ traversal rejection also passed. OpenAI construction was explicitly forbidden.
 This focused run does not test the installed desktop.
 
 The initial full gate [37968591233](https://github.com/Google-Stein/KAT/actions/runs/37968591233)
-failed at the duplicate-pending-proposal assertion, after successful build,
+failed at the expected-one-approval assertion, after successful build,
 Core/native tests, packaged/installed normal and forced lifecycle, and relaunch
 persistence. It is failed evidence, not a release gate.
 
@@ -60,6 +60,15 @@ passed build, Core/native checks, packaged/installed lifecycle and persistence,
 then stopped before inference because Ollama's upstream model-manifest service
 returned HTTP **503**. The external dependency failure was retained as a failed
 gate; the same application/tests are being retried without weakening checks.
+
+The focused file diagnostic [37973567031](https://github.com/Google-Stein/KAT/actions/runs/37973567031)
+completed semantic reading and comparison, then proved the injection-file request
+returned **zero approvals and zero audit events**: the model never requested a
+capability. Shared instructions/tool description now require an approved read
+before describing requested file contents, including when the owner calls the
+data untrusted. The adversarial fixture, required approval, strict registry and
+all release assertions are retained. Earlier runs without approval-count metadata
+cannot conclusively distinguish zero from multiple proposals.
 
 ## KAT 0.4 — bounded local capabilities
 
