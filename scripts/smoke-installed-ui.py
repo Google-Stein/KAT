@@ -591,6 +591,17 @@ def main() -> None:
         answer = rows(
             "SELECT content FROM messages WHERE id=?", (used[0]["assistant_message_id"],)
         )[0]["content"].lower()
+        if not (
+            "cloud" in answer
+            and any(word in answer for word in ("prefer", "practical", "favor", "priorit"))
+        ):
+            # This wording was created by this disposable test, never owner data.
+            print(
+                json.dumps(
+                    {"test": "installed-revised-fixture-memory-answer", "answer": answer[:1000]}
+                ),
+                flush=True,
+            )
         assert "cloud" in answer and any(
             word in answer for word in ("prefer", "practical", "favor", "priorit")
         ), "Real model did not reflect the revised cloud preference"
@@ -840,7 +851,23 @@ def main() -> None:
                 (session_id,),
             )
         )[0]
-        assert json.loads(approval["arguments"]) == {
+        requested_file = json.loads(approval["arguments"])
+        if requested_file != {
+            "root_id": registered["id"],
+            "relative_path": "release.txt",
+        }:
+            # Disposable fixture only: metadata, never file contents or owner chat.
+            print(
+                json.dumps(
+                    {
+                        "test": "installed-file-approval-arguments",
+                        "root_matches": requested_file.get("root_id") == registered["id"],
+                        "relative_path": requested_file.get("relative_path"),
+                    }
+                ),
+                flush=True,
+            )
+        assert requested_file == {
             "root_id": registered["id"],
             "relative_path": "release.txt",
         }

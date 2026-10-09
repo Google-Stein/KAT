@@ -24,8 +24,16 @@ class SystemArgs(ToolArguments):
 
 
 class FileArgs(ToolArguments):
-    root_id: RootId
-    relative_path: str = Field(min_length=1, max_length=240)
+    root_id: RootId = Field(description="Exact registered root ID from the available roots.")
+    relative_path: str = Field(
+        min_length=1,
+        max_length=240,
+        description=(
+            "Path INSIDE the root, excluding the root folder name or label. "
+            "For a file named notes.txt at its top level, use notes.txt, never '.'. "
+            "Only list_directory uses '.' to list the root itself."
+        ),
+    )
 
     @field_validator("relative_path")
     @classmethod
@@ -88,6 +96,7 @@ class BoundedCapabilities:
             (
                 "read_text_file",
                 "Read a UTF-8 text file in an approved root after one-time approval. "
+                "Copy the requested relative filename exactly, including its extension. "
                 "Maximum 64 KiB and 12000 returned characters.",
                 ToolRisk.MEDIUM,
                 FileArgs,

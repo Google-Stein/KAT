@@ -238,6 +238,56 @@ def main() -> None:
                 print(
                     "PASS: real local current RAM request executes fresh read-only system metrics."
                 )
+                fixture = Path(directory) / "read-fixture"
+                fixture.mkdir()
+                fixture_text = "The disposable test project's release color is cobalt blue."
+                (fixture / "release.txt").write_text(fixture_text, encoding="utf-8")
+                registered = client.post(
+                    "/capabilities/roots", json={"label": "Test folder", "path": str(fixture)}
+                )
+                assert registered.status_code == 201, registered.text
+                root = registered.json()
+                session = client.post("/sessions", json={}).json()["id"]
+                result = chat("What files are in my test folder?")
+                assert any(
+                    message["role"] == "tool"
+                    and (outcome := json.loads(message["content"]))["tool_name"] == "list_directory"
+                    and outcome["status"] == "completed"
+                    and any(e["name"] == "release.txt" for e in outcome["result"]["entries"])
+                    for message in client.get(f"/sessions/{session}/messages").json()
+                )
+                read_ids = set()
+                for _ in range(2):
+                    result = chat("Read release.txt from my test folder.")
+                    pending = [a for a in result["approvals"] if a["tool_name"] == "read_text_file"]
+                    assert len(pending) == 1, "Model did not request a new text-file approval"
+                    print(
+                        json.dumps(
+                            {
+                                "test": "real-local-file-approval-arguments",
+                                "root_matches": pending[0]["arguments"].get("root_id")
+                                == root["id"],
+                                "relative_path": pending[0]["arguments"].get("relative_path"),
+                            }
+                        ),
+                        flush=True,
+                    )
+                    assert pending[0]["arguments"] == {
+                        "root_id": root["id"],
+                        "relative_path": "release.txt",
+                    }
+                    assert pending[0]["id"] not in read_ids
+                    read_ids.add(pending[0]["id"])
+                    approved = client.post(
+                        f"/approvals/{pending[0]['id']}/decision", json={"approved": True}
+                    ).json()
+                    assert approved["status"] == "completed", approved["error"]
+                    assert approved["result"]["content"] == fixture_text
+                    assert fixture_text not in json.dumps(client.get("/audit").json())
+                print(
+                    "PASS: real local listing and repeated named-file requests use exact paths, "
+                    "fresh approvals and metadata-only audit."
+                )
 
 
 if __name__ == "__main__":
