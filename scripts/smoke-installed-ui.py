@@ -255,7 +255,9 @@ def main() -> None:
             win32gui.SendMessage(picker.handle, 0x400 + 103, 1, remote.mem_address)
         finally:
             remote.CleanUp()
-        picker.children(class_name="Button", control_id=1)[0].click_input()
+        confirm = picker.children(class_name="Button", control_id=1)[0]
+        wait_for(confirm.is_enabled)
+        confirm.click()
         selected_field = window.child_window(
             title="Read-only folder", control_type="Edit", visible_only=False
         )
@@ -269,6 +271,7 @@ def main() -> None:
                         "expected_path": str(fixture_root),
                         "returned_path": selected_field.get_value(),
                         "dialog_visible": picker.is_visible(),
+                        "confirm_enabled": confirm.is_enabled(),
                         "desktop_exit_code": process.poll(),
                     }
                 ),
