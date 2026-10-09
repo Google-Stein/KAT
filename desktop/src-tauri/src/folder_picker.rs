@@ -22,7 +22,10 @@ pub fn pick_folder(parent: usize) -> Result<Option<String>, String> {
         let info = BROWSEINFOW {
             hwndOwner: parent as _,
             lpszTitle: title.as_ptr(),
-            ulFlags: BIF_RETURNONLYFSDIRS | BIF_EDITBOX | BIF_NEWDIALOGSTYLE | BIF_NONEWFOLDERBUTTON,
+            ulFlags: BIF_RETURNONLYFSDIRS
+                | BIF_EDITBOX
+                | BIF_NEWDIALOGSTYLE
+                | BIF_NONEWFOLDERBUTTON,
             ..std::mem::zeroed()
         };
         let item = SHBrowseForFolderW(&info);

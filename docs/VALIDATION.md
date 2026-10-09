@@ -103,6 +103,18 @@ Readiness now also requires `window_ready` within the unchanged startup deadline
 a diagnostic regression proves an early handle alone cannot satisfy readiness.
 These failed runs remain failed evidence; full installed acceptance is pending.
 
+Focused native-picker diagnostics found that `children(..., control_id=1)` did
+not enforce the button ID and the test clicked **Make New Folder**, not OK. The
+fixture-only control snapshot in [37982517264](https://github.com/Google-Stein/KAT/actions/runs/37982517264)
+exposed the unintended rename field. Automation now explicitly matches each
+control's actual ID, navigates the real shell dialog with a properly marshalled
+selection buffer, and verifies the returned path and separate Add step. Earlier
+typing-only and un-marshalled selection attempts failed and are not validation.
+The production picker also replaces its incorrect numeric flag with named
+Windows constants, including `BIF_NONEWFOLDERBUTTON`, matching its documented
+no-folder-creation intent. Windows-target clippy and native tests pass locally;
+the corrected production picker still requires Windows acceptance.
+
 ## KAT 0.4 — bounded local capabilities
 
 Baseline is released v0.3.1, source
