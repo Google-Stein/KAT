@@ -66,7 +66,7 @@ def main() -> None:
                             flush=True,
                         )
                     return validated
-                except ValueError:
+                except ValueError as error:
                     if os.environ.get("GITHUB_ACTIONS") == "true":
                         # Types/counts only: never print argument values or arbitrary keys.
                         print(
@@ -80,6 +80,11 @@ def main() -> None:
                                     "value_types": sorted(
                                         type(v).__name__ for v in arguments.values()
                                     ),
+                                    "field_errors": app.state.service.registry.get(
+                                        name
+                                    ).validation_feedback(error)
+                                    if name in {s.name for s in app.state.service.registry.specs()}
+                                    else [],
                                 }
                             ),
                             flush=True,
@@ -292,6 +297,25 @@ def main() -> None:
                 print("PASS: actual fixture exists and metadata preflight reads no body.")
                 session = client.post("/sessions", json={}).json()["id"]
                 result = chat("What files are in my test folder?")
+                if os.environ.get("GITHUB_ACTIONS") == "true":
+                    print(
+                        json.dumps(
+                            {
+                                "test": "real-local-listing-dispatch",
+                                "events": [
+                                    {
+                                        "event": e["event"],
+                                        "tool": e["tool_name"],
+                                        "reason": e["details"].get("reason"),
+                                        "field_errors": e["details"].get("field_errors"),
+                                    }
+                                    for e in client.get("/audit").json()
+                                    if e["session_id"] == session and e["event"].startswith("tool_")
+                                ],
+                            }
+                        ),
+                        flush=True,
+                    )
                 assert any(
                     message["role"] == "tool"
                     and (outcome := json.loads(message["content"]))["tool_name"] == "list_directory"
