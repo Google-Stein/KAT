@@ -22,6 +22,9 @@ from kat_core.tools import ApplicationAllowlist, ApplicationDefinition, ToolRegi
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="qwen2.5:7b")
+    parser.add_argument(
+        "--files-only", action="store_true", help="Focused file diagnosis, not a full release gate."
+    )
     args = parser.parse_args()
     # Hosted Windows TEMP can use an 8.3 alias (RUNNER~1). Registered roots must
     # match their final canonical handle path; use the runner's ordinary test root.
@@ -111,41 +114,145 @@ def main() -> None:
                     assert response.json()["assistant_message"]["content"].strip()
                     return response.json()
 
-                chat("Hello, KAT.")
-                print("PASS: real local conversation, OpenAI unavailable.")
+                if not args.files_only:
+                    chat("Hello, KAT.")
+                    print("PASS: real local conversation, OpenAI unavailable.")
 
-                def time_results() -> list[dict]:
-                    return [
-                        event
-                        for event in client.get("/audit").json()
-                        if event["event"] == "tool_result"
-                        and event["tool_name"] == "get_local_time"
+                    def time_results() -> list[dict]:
+                        return [
+                            event
+                            for event in client.get("/audit").json()
+                            if event["event"] == "tool_result"
+                            and event["tool_name"] == "get_local_time"
+                        ]
+
+                    timestamps = []
+                    for attempt in range(1, 3):
+                        previous = {event["id"] for event in time_results()}
+                        response = chat("Tell me the time.")
+                        fresh = [event for event in time_results() if event["id"] not in previous]
+                        if len(fresh) != 1 and os.environ.get("GITHUB_ACTIONS") == "true":
+                            # Disposable, self-created test session: never owner chat,
+                            # credentials or raw HTTP headers. JSON escapes control text.
+                            print(
+                                json.dumps(
+                                    {
+                                        "test": "fresh-time",
+                                        "attempt": attempt,
+                                        "fresh_results": len(fresh),
+                                        "safe_tool_events": [
+                                            {
+                                                "event": event["event"],
+                                                "tool": event["tool_name"],
+                                                "reason": event["details"].get("reason"),
+                                                "status": event["details"].get("status"),
+                                            }
+                                            for event in client.get("/audit").json()
+                                            if event["session_id"] == session
+                                            and event["event"].startswith("tool_")
+                                        ],
+                                        "assistant_reply": response["assistant_message"]["content"][
+                                            :1000
+                                        ],
+                                    }
+                                ),
+                                flush=True,
+                            )
+                        assert len(fresh) == 1, "Repeated time request did not invoke a fresh tool"
+                        assert fresh[0]["details"]["status"] == "completed"
+                        timestamps.append(
+                            datetime.fromisoformat(fresh[0]["details"]["result"]["iso"])
+                        )
+                    assert timestamps[1] > timestamps[0], "Second time result was stale"
+                    print(
+                        "PASS: repeated real local time requests invoke fresh tools "
+                        "with newer results."
+                    )
+                    approval_ids = set()
+                    applications = (
+                        ("notepad", "notepad", "calculator", "calculator")
+                        if os.name == "nt"
+                        else ("notepad", "notepad")
+                    )
+                    for application_id in applications:
+                        previous_results = len(
+                            [
+                                event
+                                for event in client.get("/audit").json()
+                                if event["event"] == "tool_result"
+                                and event["tool_name"] == "open_application"
+                            ]
+                        )
+                        result = chat(f"Open {application_id.title()}.")
+                        pending = [
+                            item
+                            for item in result["approvals"]
+                            if item["tool_name"] == "open_application"
+                            and item["arguments"] == {"application_id": application_id}
+                        ]
+                        assert len(pending) == 1 and pending[0]["status"] == "pending", (
+                            f"Model selection failed: no new {application_id} approval"
+                        )
+                        assert pending[0]["id"] not in approval_ids
+                        approval_ids.add(pending[0]["id"])
+                        assert (
+                            len(
+                                [
+                                    event
+                                    for event in client.get("/audit").json()
+                                    if event["event"] == "tool_result"
+                                    and event["tool_name"] == "open_application"
+                                ]
+                            )
+                            == previous_results
+                        ), "Application ran before approval"
+                        approved = client.post(
+                            f"/approvals/{pending[0]['id']}/decision",
+                            json={"approved": os.name == "nt"},
+                        ).json()
+                        if os.name == "nt":
+                            assert approved["status"] == "completed", approved["error"]
+                            print(
+                                f"PASS: fresh {application_id} selection, explicit approval, "
+                                "fixed native launch and audit."
+                            )
+                            # GUI creation is separately asserted by the installed UI test.
+                            from contextlib import suppress
+
+                            import win32api
+
+                            with suppress(Exception):
+                                handle = win32api.OpenProcess(1, False, approved["result"]["pid"])
+                                win32api.TerminateProcess(handle, 0)
+                                win32api.CloseHandle(handle)
+                        else:
+                            assert approved["status"] == "denied"
+                            print(
+                                "PASS: repeated local approval/denial; "
+                                "Windows launch untested on Linux."
+                            )
+                    session = client.post("/sessions", json={}).json()["id"]
+                    response = chat("How much RAM am I using?")
+                    events = [e for e in client.get("/audit").json() if e["session_id"] == session]
+                    results = [
+                        e
+                        for e in events
+                        if e["event"] == "tool_result" and e["tool_name"] == "get_system_status"
                     ]
-
-                timestamps = []
-                for attempt in range(1, 3):
-                    previous = {event["id"] for event in time_results()}
-                    response = chat("Tell me the time.")
-                    fresh = [event for event in time_results() if event["id"] not in previous]
-                    if len(fresh) != 1 and os.environ.get("GITHUB_ACTIONS") == "true":
-                        # Disposable, self-created test session: never owner chat,
-                        # credentials or raw HTTP headers. JSON escapes control text.
+                    if len(results) != 1 and os.environ.get("GITHUB_ACTIONS") == "true":
                         print(
                             json.dumps(
                                 {
-                                    "test": "fresh-time",
-                                    "attempt": attempt,
-                                    "fresh_results": len(fresh),
+                                    "test": "fresh-system",
+                                    "result_count": len(results),
                                     "safe_tool_events": [
                                         {
-                                            "event": event["event"],
-                                            "tool": event["tool_name"],
-                                            "reason": event["details"].get("reason"),
-                                            "status": event["details"].get("status"),
+                                            "event": e["event"],
+                                            "tool": e["tool_name"],
+                                            "reason": e["details"].get("reason"),
                                         }
-                                        for event in client.get("/audit").json()
-                                        if event["session_id"] == session
-                                        and event["event"].startswith("tool_")
+                                        for e in events
+                                        if e["event"].startswith("tool_")
                                     ],
                                     "assistant_reply": response["assistant_message"]["content"][
                                         :1000
@@ -154,130 +261,40 @@ def main() -> None:
                             ),
                             flush=True,
                         )
-                    assert len(fresh) == 1, "Repeated time request did not invoke a fresh tool"
-                    assert fresh[0]["details"]["status"] == "completed"
-                    timestamps.append(datetime.fromisoformat(fresh[0]["details"]["result"]["iso"]))
-                assert timestamps[1] > timestamps[0], "Second time result was stale"
-                print(
-                    "PASS: repeated real local time requests invoke fresh tools with newer results."
-                )
-                approval_ids = set()
-                applications = (
-                    ("notepad", "notepad", "calculator", "calculator")
-                    if os.name == "nt"
-                    else ("notepad", "notepad")
-                )
-                for application_id in applications:
-                    previous_results = len(
-                        [
-                            event
-                            for event in client.get("/audit").json()
-                            if event["event"] == "tool_result"
-                            and event["tool_name"] == "open_application"
-                        ]
-                    )
-                    result = chat(f"Open {application_id.title()}.")
-                    pending = [
-                        item
-                        for item in result["approvals"]
-                        if item["tool_name"] == "open_application"
-                        and item["arguments"] == {"application_id": application_id}
-                    ]
-                    assert len(pending) == 1 and pending[0]["status"] == "pending", (
-                        f"Model selection failed: no new {application_id} approval"
-                    )
-                    assert pending[0]["id"] not in approval_ids
-                    approval_ids.add(pending[0]["id"])
-                    assert (
-                        len(
-                            [
-                                event
-                                for event in client.get("/audit").json()
-                                if event["event"] == "tool_result"
-                                and event["tool_name"] == "open_application"
-                            ]
-                        )
-                        == previous_results
-                    ), "Application ran before approval"
-                    approved = client.post(
-                        f"/approvals/{pending[0]['id']}/decision",
-                        json={"approved": os.name == "nt"},
-                    ).json()
-                    if os.name == "nt":
-                        assert approved["status"] == "completed", approved["error"]
-                        print(
-                            f"PASS: fresh {application_id} selection, explicit approval, "
-                            "fixed native launch and audit."
-                        )
-                        # GUI creation is separately asserted by the installed UI test.
-                        from contextlib import suppress
-
-                        import win32api
-
-                        with suppress(Exception):
-                            handle = win32api.OpenProcess(1, False, approved["result"]["pid"])
-                            win32api.TerminateProcess(handle, 0)
-                            win32api.CloseHandle(handle)
-                    else:
-                        assert approved["status"] == "denied"
-                        print(
-                            "PASS: repeated local approval/denial; "
-                            "Windows launch untested on Linux."
-                        )
-                session = client.post("/sessions", json={}).json()["id"]
-                response = chat("How much RAM am I using?")
-                events = [e for e in client.get("/audit").json() if e["session_id"] == session]
-                results = [
-                    e
-                    for e in events
-                    if e["event"] == "tool_result" and e["tool_name"] == "get_system_status"
-                ]
-                if len(results) != 1 and os.environ.get("GITHUB_ACTIONS") == "true":
+                    assert len(results) == 1, "RAM request did not invoke one fresh system tool"
+                    assert results[0]["details"]["status"] == "completed"
+                    assert results[0]["details"]["result"]["ram"]["total_bytes"] > 0
                     print(
-                        json.dumps(
-                            {
-                                "test": "fresh-system",
-                                "result_count": len(results),
-                                "safe_tool_events": [
-                                    {
-                                        "event": e["event"],
-                                        "tool": e["tool_name"],
-                                        "reason": e["details"].get("reason"),
-                                    }
-                                    for e in events
-                                    if e["event"].startswith("tool_")
-                                ],
-                                "assistant_reply": response["assistant_message"]["content"][:1000],
-                            }
-                        ),
-                        flush=True,
+                        "PASS: real local current RAM request executes fresh "
+                        "read-only system metrics."
                     )
-                assert len(results) == 1, "RAM request did not invoke one fresh system tool"
-                assert results[0]["details"]["status"] == "completed"
-                assert results[0]["details"]["result"]["ram"]["total_bytes"] > 0
-                print(
-                    "PASS: real local current RAM request executes fresh read-only system metrics."
-                )
-                assert client.put("/memory/settings", json={"enabled": True}).status_code == 200
-                name = client.post(
-                    "/memories", json={"content": "main user is named Luis", "confirmed": True}
-                )
-                assert name.status_code == 201, name.text
-                for question in ("What is my name?", "What am I named?"):
-                    session = client.post("/sessions", json={}).json()["id"]
-                    result = chat(question)
-                    used = client.get(f"/sessions/{session}/memory-usage").json()
-                    assert len(used) == 1 and used[0]["memory_id"] == name.json()["id"]
-                    answer = result["assistant_message"]["content"]
-                    if "luis" not in answer.lower():
-                        print(
-                            json.dumps(
-                                {"test": "real-local-fixture-name-answer", "answer": answer[:1000]}
-                            ),
-                            flush=True,
+                    assert client.put("/memory/settings", json={"enabled": True}).status_code == 200
+                    name = client.post(
+                        "/memories", json={"content": "main user is named Luis", "confirmed": True}
+                    )
+                    assert name.status_code == 201, name.text
+                    for question in ("What is my name?", "What am I named?"):
+                        session = client.post("/sessions", json={}).json()["id"]
+                        result = chat(question)
+                        used = client.get(f"/sessions/{session}/memory-usage").json()
+                        assert len(used) == 1 and used[0]["memory_id"] == name.json()["id"]
+                        answer = result["assistant_message"]["content"]
+                        if "luis" not in answer.lower():
+                            print(
+                                json.dumps(
+                                    {
+                                        "test": "real-local-fixture-name-answer",
+                                        "answer": answer[:1000],
+                                    }
+                                ),
+                                flush=True,
+                            )
+                        assert "luis" in answer.lower(), (
+                            "Retrieved name was not reflected in answer"
                         )
-                    assert "luis" in answer.lower(), "Retrieved name was not reflected in answer"
-                print("PASS: real local model answers both name variants from confirmed memory.")
+                    print(
+                        "PASS: real local model answers both name variants from confirmed memory."
+                    )
                 fixture = Path(directory) / "read-fixture"
                 fixture.mkdir()
                 fixture = fixture.resolve(strict=True)
@@ -423,6 +440,40 @@ def main() -> None:
                         if "Compare" in question
                         else {"injection.txt" if "injection" in question else "briefing.txt"}
                     )
+                    if not 1 <= len(pending) <= len(names):
+                        print(
+                            json.dumps(
+                                {
+                                    "test": "current-task-file-approvals",
+                                    "pending_count": len(pending),
+                                    "expected_count": len(names),
+                                    "approvals": [
+                                        {
+                                            "tool": a["tool_name"],
+                                            "status": a["status"],
+                                            "root_matches": a["arguments"].get("root_id")
+                                            == root["id"],
+                                            "relative_path": str(
+                                                a["arguments"].get("relative_path", "")
+                                            )[:250],
+                                            "origin_matches": a["origin_user_message_id"]
+                                            == first["user_message"]["id"],
+                                        }
+                                        for a in pending
+                                    ],
+                                    "events": [
+                                        {
+                                            "event": e["event"],
+                                            "tool": e["tool_name"],
+                                            "reason": e["details"].get("reason"),
+                                        }
+                                        for e in client.get("/audit").json()
+                                        if e["session_id"] == session
+                                    ],
+                                }
+                            ),
+                            flush=True,
+                        )
                     assert 1 <= len(pending) <= len(names), "Expected individually approved reads"
                     ids = set()
                     read_names = set()

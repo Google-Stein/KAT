@@ -1,4 +1,4 @@
-param([string]$Executable = '', [string]$Model = 'qwen2.5:7b')
+param([string]$Executable = '', [string]$Model = 'qwen2.5:7b', [switch]$FilesOnly)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repo = Split-Path -Parent $PSScriptRoot
@@ -31,7 +31,9 @@ try {
   $null = Invoke-RestMethod 'http://127.0.0.1:11434/api/version'
   & $ollama pull $Model
   if ($LASTEXITCODE -ne 0) { throw 'Explicit Ollama test-model pull failed.' }
-  & $python (Join-Path $PSScriptRoot 'smoke-local.py') --model $Model
+  $smokeArgs = @('--model', $Model)
+  if ($FilesOnly) { $smokeArgs += '--files-only' }
+  & $python (Join-Path $PSScriptRoot 'smoke-local.py') @smokeArgs
   if ($LASTEXITCODE -ne 0) { throw 'Actual local Core inference/tools smoke failed.' }
   if ($Executable) {
     & $python (Join-Path $PSScriptRoot 'smoke-installed-ui.py') --executable $Executable --model $Model

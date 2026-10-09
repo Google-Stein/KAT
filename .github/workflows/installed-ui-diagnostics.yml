@@ -21,6 +21,11 @@ on:
         required: false
         default: false
         type: boolean
+      files_only:
+        description: 'Focused Core read continuation diagnosis; requires core_only, not a release gate'
+        required: false
+        default: false
+        type: boolean
       folder_only:
         description: 'Only native folder selection and explicit registration; requires executable_run'
         required: false
@@ -49,6 +54,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EXECUTABLE_RUN: ${{ inputs.executable_run }}
           CORE_ONLY: ${{ inputs.core_only }}
+          FILES_ONLY: ${{ inputs.files_only }}
           WEATHER_ONLY: ${{ inputs.weather_only }}
           FOLDER_ONLY: ${{ inputs.folder_only }}
           PROVIDER_VISIBILITY_ONLY: ${{ inputs.provider_visibility_only }}
@@ -60,7 +66,7 @@ jobs:
             & core/.venv/Scripts/python.exe scripts/diagnose-weather.py
             if ($LASTEXITCODE -ne 0) { throw 'Fixed weather timing diagnostic failed.' }
           } elseif ($env:CORE_ONLY -eq 'true') {
-            ./scripts/test-local-windows.ps1 -Model $env:MODEL
+            ./scripts/test-local-windows.ps1 -Model $env:MODEL -FilesOnly:($env:FILES_ONLY -eq 'true')
           } elseif ($env:EXECUTABLE_RUN) {
             if ($env:EXECUTABLE_RUN -notmatch '^\d+$') { throw 'Expected a numeric run ID.' }
             gh run download $env:EXECUTABLE_RUN --name kat-windows-executable --dir .local/diagnostic-app
