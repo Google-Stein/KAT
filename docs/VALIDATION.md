@@ -3,10 +3,14 @@
 ## KAT 0.4.1 — approved local tool continuation
 
 Baseline is released v0.4.0, source `74fb245683903209af1518960a7b97c7ab88bdc0`.
-**Release validation is pending.** New deterministic checks use the production
-Ollama adapter and actual OpenAI SDK with synthetic transports. They are separate
-from installed real-Ollama acceptance. The existing Core/Desktop/Windows gates
-remain mandatory; counts and actual Windows runs will be recorded after completion.
+**Full Core/Desktop/Windows acceptance passed** on October 9, 2026 in
+[37985336496](https://github.com/Google-Stein/KAT/actions/runs/37985336496), source
+`79395ce113321ee096a11352d933eca151735305`. The installed production UI also
+passed separately in [37985337704](https://github.com/Google-Stein/KAT/actions/runs/37985337704).
+Publication additionally requires the final documentation/diagnostic commit to
+pass the same exact-source gate; release notes identify that final source and run.
+Deterministic OpenAI checks use the actual SDK with synthetic HTTP transports;
+real model acceptance uses local Ollama, not live OpenAI.
 
 ### Candidate checks in the cloud workspace
 
@@ -22,16 +26,16 @@ remain mandatory; counts and actual Windows runs will be recorded after completi
 | Core PyInstaller one-directory build | Passed with Python 3.12.14 |
 | Source Core process smoke | Passed authenticated startup, keyless error, restart persistence and shutdown |
 | Packaged Core process smoke and native real-Core integrations | Passed packaged authenticated startup/persistence/shutdown; **three** development/packaged child and worker-lifetime integrations executed and passed |
-| PowerShell startup diagnostic tests | **18 passed** using writable XDG directories; the initial Linux invocation could not create PowerShell's cache in its read-only home |
+| PowerShell startup diagnostic tests | **20 passed** in Windows CI, including an early Win32 handle without completed WebView initialization; local execution uses writable XDG directories |
 
-These checks do not constitute installed Windows or real-Ollama validation.
+These local checks are separate from installed acceptance recorded below.
 The first real-Qwen diagnostic [37968615337](https://github.com/Google-Stein/KAT/actions/runs/37968615337)
 failed its expected-one-approval assertion after repeated same-file proposals. Core now
 coalesces only exact unresolved reads within one original task, after validation;
 regressions prove completed reads and new owner requests still get fresh approvals.
 No timeout, path, approval or result bound was relaxed.
 
-### Real local Core acceptance — passed, installed UI gate pending
+### Investigation and earlier diagnostics
 
 [37969856623](https://github.com/Google-Stein/KAT/actions/runs/37969856623)
 passed on source `7e5e4bbb0a8e4f86bdca8fa9d4f4613f5c52c2d1` with real Windows
@@ -101,7 +105,7 @@ exposed an earlier lifecycle-test race: its Win32 handle existed while the nativ
 log still said `window_creating`, and normal close arrived before setup completed.
 Readiness now also requires `window_ready` within the unchanged startup deadline;
 a diagnostic regression proves an early handle alone cannot satisfy readiness.
-These failed runs remain failed evidence; full installed acceptance is pending.
+These failed runs remain failed evidence; subsequent full acceptance is recorded below.
 
 Focused native-picker diagnostics found that `children(..., control_id=1)` did
 not enforce the button ID and the test clicked **Make New Folder**, not OK. The
@@ -113,7 +117,59 @@ typing-only and un-marshalled selection attempts failed and are not validation.
 The production picker also replaces its incorrect numeric flag with named
 Windows constants, including `BIF_NONEWFOLDERBUTTON`, matching its documented
 no-folder-creation intent. Windows-target clippy and native tests pass locally;
-the corrected production picker still requires Windows acceptance.
+the corrected production picker subsequently passed full Windows acceptance.
+
+The later full run [37980944808](https://github.com/Google-Stein/KAT/actions/runs/37980944808)
+on `97eaefbdf0d22a22818a9432e0f8e71e8230d900` passed Core/Desktop,
+packaged/installed lifecycle, complete real local Core acceptance, and installed
+semantic, repeated-read, two-file and injection continuation. It then failed
+because the new provider-change test tried to use a nonexistent **Chat** button.
+The test now returns through the actual Conversations landmark to the pending
+session. This failed workflow does not validate the remaining cloud-switch,
+revocation/relaunch/uninstall checks.
+
+Isolated native-folder diagnosis [37982801063](https://github.com/Google-Stein/KAT/actions/runs/37982801063)
+passed selection and separate Add registration. The longer UI diagnostic
+[37982946032](https://github.com/Google-Stein/KAT/actions/runs/37982946032)
+left the selected dialog open; automation now focuses the modal before clicking
+the explicitly identified OK control. Another diagnostic
+[37983673329](https://github.com/Google-Stein/KAT/actions/runs/37983673329)
+missed a coordinate click on the memory-retrieval checkbox after relaunch. Its
+accessibility Toggle action is now used; the persisted-setting assertion remains
+mandatory. These are failed diagnostics, not passing release evidence.
+
+### Full installed Windows acceptance — passed
+
+The full run above used Python **3.12.10**, checksum-verified Ollama **0.40.1**,
+Qwen2.5:**7b**, real CPU inference and the current-user NSIS installer. No partial
+diagnostic flags were passed. Actual results:
+
+| Check/command | Result |
+| --- | --- |
+| Core pytest on Linux and Windows | **293 passed, one platform-specific skip** on each; the Windows sharing/reparse checks executed, and Windows skipped the POSIX execute-bit check |
+| Core Ruff, format, mypy; release metadata; source process smoke | Passed; **35** typed source modules |
+| Desktop npm tests, lint, format, TypeScript and production build | **45 passed**; all build/check commands passed |
+| Native Cargo tests and formatting | Linux **20 passed / four opt-in or fixture cases ignored**; Windows **21 passed / five opt-in or fixture cases ignored**; three actual Core lifecycle integrations explicitly executed and passed |
+| `smoke-windows.ps1` and installed lifecycle | Real window, authenticated owned Core, unauthenticated 401, single-child/listener topology; normal close and forced termination both stop Core and release port 42800 |
+| `smoke-local.py` through `test-local-windows.ps1` | Complete real local Core suite passed: fresh time, repeated approved apps including Calculator, RAM, both name variants, exact files, fresh approvals, semantic answer, two-file comparison, injection and traversal rejection |
+| `smoke-installed-ui.py` | Native credential entry/replacement/removal and restart persistence; real local conversation, repeated time, two Notepad windows, Calculator, memory editing/Remember/name variants/abstention, external fresh weather and RAM all passed |
+| Native folder and approved continuation | Exact disposable path, separate Add action, no pre-approval body access; Copper Falcon / November 12 answer after one approval; repeated read requires a new approval; comparison requires two separately approved reads; injection cannot expand authority; no additional owner message |
+| Provider-change privacy | Switch the pending read to OpenAI, approve locally, suppress automatic inference, display the local result and safe notice; no fallback/provider error; restore Ollama through real Settings |
+| Persistence, revocation, Forget, uninstall | Weather/read roots survive relaunch; owner root removal works; Forget clears memory/revisions/FTS while preserving separate transcripts; uninstall removes application and preserves local data |
+
+The production folder dialog's **Make New Folder** control was actually hidden.
+Focused Settings diagnosis [37985748020](https://github.com/Google-Stein/KAT/actions/runs/37985748020)
+also passed credential checks and a real UI/SQLite provider round trip without
+inference. Earlier [37982881162](https://github.com/Google-Stein/KAT/actions/runs/37982881162)
+hit the existing **120-second model deadline** on a slow CPU runner; it remains
+failed evidence and the deadline was not increased. The failed selector/save
+automation runs were corrected using real popup selection and accessibility
+actions, retaining persisted-state assertions and every production release check.
+
+Owner RTX 4090/field-machine testing and live OpenAI inference were **not** run.
+Installer signing remains outside this release. Crash/duplicate/privacy/budget
+and hostile-model-call properties additionally rely on deterministic regression
+tests, rather than assuming this real model tries every attack.
 
 ## KAT 0.4 — bounded local capabilities
 

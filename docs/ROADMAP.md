@@ -104,14 +104,16 @@ must pass the same gate before publication. Stop here for owner feedback.
 
 ## Next bounded milestone — owner review
 
-### 0.4.1: Approved tool continuation — owner approved, validation pending
+### 0.4.1: Approved tool continuation — Windows acceptance passed
 
 Local Ollama resumes the original task after approved text reads, including
 separately approved chained reads. Durable origins, one-time claims, route/scope
 checks, conservative crash recovery and shared budgets protect correctness.
 Cloud file sharing remains excluded. Release requires exact-source green CI and
 installed real-Ollama semantic answers, repeated approvals, comparison and hostile
-file validation. Stop after release; 0.5 implementation is not authorized.
+file validation. Full acceptance passed in GitHub Actions run 37985336496;
+publication still requires the final exact-source gate described in VALIDATION.
+Stop after release; 0.5 implementation is not authorized.
 
 Gather owner feedback on weather availability, system coverage, folder selection,
 content approvals and memory relevance, then improve error/recovery ergonomics
